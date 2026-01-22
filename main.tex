@@ -1,0 +1,193 @@
+\documentclass[letterpaper,11pt]{article}
+
+% Packages
+\usepackage[utf8]{inputenc}
+\usepackage{geometry}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{fancyhdr}
+
+% Page Setup
+\geometry{left=2.5cm, right=2.5cm, top=2.5cm, bottom=2.5cm}
+\setlength{\headheight}{14pt}
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{\textbf{Proposal}}
+\lhead{Anonymous Identification Verification System}
+\cfoot{\thepage}
+
+% Custom Colors
+\definecolor{primary}{RGB}{0, 51, 102}
+\definecolor{accent}{RGB}{204, 0, 0}
+
+% Title Format
+\titleformat{\section}
+{\normalfont\Large\bfseries\color{primary}}{\thesection}{1em}{}
+
+\titleformat{\subsection}
+{\normalfont\large\bfseries\color{primary}}{\thesubsection}{1em}{}
+
+% Metadata
+\title{\textbf{A Proposal: An Anonymous Identification Verification System}\\Based on Ring Signatures with Isolated Smart Card Hardware}
+\author{
+\textit{Dinh Anh Khoa Nguyen - 245849840 - nguy9840@mylaurier.ca}\\
+\textit{Jiangtao Wang - 245823800 - Wang2370@mylaurier.ca}\\
+\textit{Leila Chen - 245850620 - chen5062@mylaurier.ca}\\
+\textit{Yuyang Wu - 245817310 - wuxx7310@mylaurier.ca}\\
+}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+\thispagestyle{empty}
+
+\begin{abstract}
+This proposal outlines the engineering implementation of a privacy-preserving messaging platform that decouples message integrity from identity revelation. Leveraging Yubikey hardware PRF and nested Ring Signatures, the system allows users to send undeniable, tamper-proof messages anonymously, with the exclusive capability to retroactively prove authorship. The project adopts an Agile methodology, utilizing React/TypeScript for the frontend and Node.js for the backend.
+\end{abstract}
+\newpage
+
+\tableofcontents
+\newpage
+
+\section{Executive Summary and Highlights}
+
+\subsection{Overview}
+Project AIVS (Anonymous Identification Verification System) is a cryptographic engineering initiative designed to solve the a paradox in secure communications: the trade-off between anonymity and accountability, and introducing a hardware smartcard to participate in this process to ensure the security of the private keys.
+\subsection{Key Highlights}
+\begin{itemize}
+    \item \textbf{Hardware Security:} Utilizes Yubikey PRF to generate unpredictable passphrases, ensuring keys never leave the hardware boundary.
+    \item \textbf{Nested Ring Signatures:} Employs a dual-layer signing mechanism (Inner Ring for identity proof, Outer Ring for anonymous transmission) to ensure mathematical unlinkability.
+    \item \textbf{Selective Disclosure:} Grants the sender full control over identity revelation. No central authority can unmask the user; only the holder of the physical hardware token can decrypt the proof.
+    \item \textbf{Agile Engineering Stack:} Built on a modern, type-safe stack (React + TypeScript + Node.js) designed for auditability and rapid iteration.
+\end{itemize}
+
+\newpage
+
+\section{Epic}
+
+\subsection{What is the problem?}
+In current cryptographic systems, users typically face a binary choice:
+\begin{enumerate}
+    \item \textbf{Signed Messages:} Authenticity is guaranteed, but privacy is compromised immediately (e.g., PGP).
+    \item \textbf{Anonymous Messages:} Privacy is maintained, but credibility is low, and the author cannot later claim credit or reputation for the content (e.g., Tor-based drops).
+\end{enumerate}
+There is a lack of infrastructure that supports \textit{conditional anonymity}. Where a user can speak freely now and prove they spoke later, without relying on a trusted third party.
+
+\subsection{What is our goals?}
+\begin{itemize}
+    \item \textbf{Objective A:} Anonymous message dispatching where the sender is mathematically hidden among a set of 7 decoys (1-of-8 Ring Signature).
+    \item \textbf{Objective B:} Integrity verification by the recipient without identity knowledge.
+    \item \textbf{Objective C:} A "Challenge-Response" flow where the sender can prove authorship by unlocking a cryptographic proof using their physical Yubikey.
+\end{itemize}
+
+\section{Story}
+
+Let's imagine a scenario. Alice wants to send a message to Bob through an online platform anonymously. Bob wants to confirm the message what he received is not tampered with. Additionally, once Bob wants to confirm the identity of the sender, and Alice claims she is the sender, Bob is able to verify her identity.
+
+\subsection{How do we provide the solution?}
+\begin{enumerate}
+    \item \textbf{Message Composition:} Alice uses her browser with a connected Yubikey to compose a message. The Yubikey generates a One-Time Key (OTK) by some methods.
+    \item \textbf{Inner Ring Signature:} Alice creates an inner Ring Signature over the message using the OTK and 7 randomly generated fake keys. This signature proves that one of the keys signed the message, but not which one.
+    \item \textbf{Proof Encryption:} The inner signature is encrypted using a symmetric key derived from the PRF call on the Yubikey, ensuring only Alice can decrypt it later.
+    \item \textbf{Outer Ring Signature:} Alice then creates an outer Ring Signature over the message concatenated with the hash of the inner signature, again using the OTK and the same set of fake keys.
+    \item \textbf{Message Transmission:} The outer signature, along with the encrypted inner signature (the Proof), is sent to Bob.
+    \item \textbf{Verification by Bob:} Upon receiving the message, Bob verifies the outer Ring Signature to ensure message integrity without knowing who signed it.
+    \item \textbf{Challenge for Proof:} If Bob wants to verify Alice's identity later, he sends the proof, and the signature to Alice.
+    \item \textbf{Proof Decryption:} Alice uses her Yubikey to derive the decryption key and decrypts the inner signature (the Proof).
+    \item \textbf{Final Verification:} Alice sends the decrypted inner signature to Bob, who verifies it against the original message. If valid, Bob confirms that Alice was indeed the sender.
+\end{enumerate}
+
+\section{Technical Model}
+
+\subsection{Security Model}
+\begin{itemize}
+    \item \textbf{Key Derivation:} The OTK is derived with the participation of the Yubikey, ensuring it cannot be predicted or extracted.
+    \item \textbf{Anonymity Set:} 1 real signer + 7 random decoys = 8 total keys. Probability of guessing the signer is $1/8$ per message (statistically negligible for identification).
+    \item \textbf{Forward Secrecy:} Compromise of the Yubikey allows decryption of past Proofs but does not reveal the identity of past messages \textit{unless} the attacker actively performs the decryption and linking.
+\end{itemize}
+
+\subsection{Technical Stack Chosen}
+\begin{itemize}
+    \item \textbf{Frontend:} React, TypeScript.
+    \item \textbf{Cryptography (Client):} WebAuthn API (PRF extension), Elliptic Curve Library (e.g., \texttt{elliptic} or WASM-based Rust bindings) for Ring Signatures.
+    \item \textbf{Backend:} Node.js (Express/NestJS).
+    \item \textbf{Database:} PostgreSQL(Stores only blobs: Message, Public Keys Ring, Signature, Encrypted Proof).
+\end{itemize}
+
+\subsection{Cryptographic Construction}
+\begin{enumerate}
+    \item \textbf{Setup:} Generate One-Time Key ($OTK$) via Yubikey. Generate 7 Fake Keys ($FK_{1...7}$).
+    \item \textbf{Inner Layer (The Proof):}
+    $$ Sig_{inner} = RingSign(Message, \{OTK, FK_{1...7}\}) $$
+    $$ Key_{proof} = KDF(PRF_{Yubikey}(Hash(OTK))) $$
+    $$ Proof = Encrypt_{AES-GCM}(Sig_{inner}, Key_{proof}) $$
+    \item \textbf{Outer Layer (The Transmission):}
+    $$ Sig_{outer} = RingSign(Message || Hash(Sig_{inner}), \{OTK, FK_{1...7}\}) $$
+    \item \textbf{Verification:} Upon decryption, the Linkable Tag of $Sig_{inner}$ must equal the Linkable Tag of $Sig_{outer}$.
+\end{enumerate}
+
+\section{System Design}
+
+\subsection{Architecture Overview}
+The system follows a \textbf{Thick Client, Thin Server} architecture. The server acts purely as a bulletin board and relay, possessing zero knowledge of user identities or private keys.
+
+\subsection{Component Diagram}
+\begin{verbatim}
+[Client A (Sender)]          [Server (Node.js)]          [Client B (Recipient)]
+       |                            |                            |
+   (Yubikey)                        |                            |
+       | -- Gen OTK & Sig -->       |                            |
+       | -- POST Message --->       |                            |
+       |                            | -- Store Message -->       |
+       |                            |                            |
+       |                            | -- WS / Push Event -->     |
+       |                            |                            |
+       |                            |             (Verify Outer Sig locally)
+       |                            |                            |
+   (Challenge) <------------------  | <----- Request Proof ----- |
+       |                            |                            |
+   (Decrypt Proof)                  |                            |
+       | -- Send Decrypted Sig ->   |                            |
+       |                            | -- Forward Sig ----------> |
+       |                            |                            |
+       |                            |             (Verify Inner Sig & Link)
+\end{verbatim}
+
+\subsection{Data Flow}
+\begin{enumerate}
+    \item \textbf{Registration:} None required for the messaging protocol itself (stateless). Optional username registration maps public handles to WebAuthn Credential IDs for routing.
+    \item \textbf{Signing:} All cryptographic operations occur in the browser memory. The Yubikey is accessed via `navigator.credentials.get({ prf: ... })`.
+\end{enumerate}
+
+\section{Genesis Sprint and Milestones}
+
+\subsection{Sprint 0: Feasibility \& PoC (2 Weeks)}
+\begin{itemize}
+    \item \textbf{Goal:} Validate Yubikey PRF behavior in Chrome/Firefox.
+    \item \textbf{Deliverable:} A minimal script that inputs a salt and outputs a consistent AES key using a Yubikey.
+\end{itemize}
+
+\subsection{Milestones 1: Core Cryptography Module}
+\begin{itemize}
+    \item \textbf{Goal:} Implement Linkable Ring Signatures in TypeScript/WASM.
+    \item \textbf{Deliverable:} Unit tests proving 1-of-8 signing and verification, and tag linking.
+\end{itemize}
+
+\subsection{Milestones 2: Backend \& Basic UI}
+\begin{itemize}
+    \item \textbf{Goal:} Message transport.
+    \item \textbf{Deliverable:} Node.js API to store/retrieve message blobs. React UI to compose messages.
+\end{itemize}
+
+\subsection{Milestones 3: Integration \& The "Reveal" Flow}
+\begin{itemize}
+    \item \textbf{Goal:} Connect crypto with UI.
+    \item \textbf{Deliverable:} End-to-End flow: Alice sends anonymous msg $\rightarrow$ Bob requests proof $\rightarrow$ Alice reveals $\rightarrow$ Bob verifies.
+\end{itemize}
+
+\end{document}
