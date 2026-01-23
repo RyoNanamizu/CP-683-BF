@@ -70,39 +70,41 @@ Project AIVS (Anonymous Identification Verification System) is a cryptographic e
 
 \section{Problem Motivation}
 
-\subsection{What is the problem?}
+\subsection{Problem Statement}
 In current cryptographic systems, users typically face a binary choice:
 \begin{enumerate}
     \item \textbf{Signed Messages:} Authenticity is guaranteed, but privacy is compromised immediately (e.g., PGP).
     \item \textbf{Anonymous Messages:} Privacy is maintained, but credibility is low, and the author cannot later claim credit or reputation for the content (e.g., Tor-based drops).
 \end{enumerate}
-There is a lack of infrastructure that supports \textit{conditional anonymity}. Where a user can speak freely now and prove they spoke later, without relying on a trusted third party.
+There is a lack of infrastructure that supports \textit{conditional anonymity}: messages are anonymous by default, yet authorship can be proven later by the sender alone. Where a user can speak freely now and prove they spoke later, without relying on a trusted third party.
 
-\subsection{What is our goals?}
+\subsection{Objectives}
 \begin{itemize}
     \item \textbf{Objective A:} Anonymous message dispatching where the sender is mathematically hidden among a set of 7 decoys (1-of-8 Ring Signature).
     \item \textbf{Objective B:} Integrity verification by the recipient without identity knowledge.
     \item \textbf{Objective C:} A "Challenge-Response" flow where the sender can prove authorship by unlocking a cryptographic proof using their physical Yubikey.
 \end{itemize}
 
-\section{Use Case and Motivation Overview}
+\section{System Overview and Workflow}
 
-Let's imagine a scenario. Alice wants to send a message to Bob through an online platform anonymously. Bob wants to confirm the message what he received is not tampered with. Additionally, once Bob wants to confirm the identity of the sender, and Alice claims she is the sender, Bob is able to verify her identity.
+\subsection{System Roles and Trust Assumptions}
+The system involves three primary roles: the Sender, the Recipient, and a Backend Server, with a YubiKey hardware token participating in cryptographic operations. Both the Sender and the Recipient interact with the system through a web browser, while the backend server functions solely as a message relay and storage service.
 
-\subsection{How do we provide the solution?}
-\begin{enumerate}
-    \item \textbf{Message Composition:} Alice uses her browser with a connected Yubikey to compose a message. The Yubikey generates a One-Time Key (OTK) by some methods.
-    \item \textbf{Inner Ring Signature:} Alice creates an inner Ring Signature over the message using the OTK and 7 randomly generated fake keys. This signature proves that one of the keys signed the message, but not which one.
-    \item \textbf{Proof Encryption:} The inner signature is encrypted using a symmetric key derived from the PRF call on the Yubikey, ensuring only Alice can decrypt it later.
-    \item \textbf{Outer Ring Signature:} Alice then creates an outer Ring Signature over the message concatenated with the hash of the inner signature, again using the OTK and the same set of fake keys.
-    \item \textbf{Message Transmission:} The outer signature, along with the encrypted inner signature (the Proof), is sent to Bob.
-    \item \textbf{Verification by Bob:} Upon receiving the message, Bob verifies the outer Ring Signature to ensure message integrity without knowing who signed it.
-    \item \textbf{Challenge for Proof:} If Bob wants to verify Alice's identity later, he sends the proof, and the signature to Alice.
-    \item \textbf{Proof Decryption:} Alice uses her Yubikey to derive the decryption key and decrypts the inner signature (the Proof).
-    \item \textbf{Final Verification:} Alice sends the decrypted inner signature to Bob, who verifies it against the original message. If valid, Bob confirms that Alice was indeed the sender.
-\end{enumerate}
+All cryptographic operations are performed locally on the client side with the assistance of the YubiKey. The server does not generate, store, or process private keys, and only handles opaque data blobs, including messages, signatures, and encrypted proofs. The YubiKey is used to provide hardware-bound PRF outputs that participate in one-time key derivation and proof encryption, without exposing secret material to the browser or operating system.
 
-\section{Technical Model}
+The system does not maintain a global signing key registry. Each message is associated with a freshly derived one-time key, and no signing keys are reused across messages.
+
+\subsection{Workflow}
+The workflow consists of an anonymous message transmission phase followed by an optional identity verification phase.
+
+During message transmission, the Sender composes a message using a browser-based client with a connected YubiKey. A one-time key is derived with the participation of the YubiKey and used, together with a fixed set of randomly generated decoy keys, to construct a ring signature over the message. To support future authorship verification, an additional inner ring signature is generated and encrypted as a proof using a symmetric key derived from the YubiKey PRF output. An outer ring signature is then computed over the message concatenated with the hash of the encrypted proof. The message, outer signature, and encrypted proof are transmitted to the Recipient via the backend server.
+
+Upon receipt, the Recipient verifies the outer ring signature to confirm message integrity and authenticity, while the Sender’s identity remains hidden within the anonymity set. The encrypted proof is not required for this initial verification.
+
+If identity verification is later requested, the Recipient sends the original message, signature, and encrypted proof to the claimed Sender. Using the same YubiKey, the Sender derives the corresponding decryption key and decrypts the proof to reveal the inner ring signature. The decrypted signature is returned to the Recipient, who verifies its validity and linkability against the original message and signature to confirm authorship.
+
+
+\section{Methodology and Technical Design}
 
 \subsection{Security Model}
 \begin{itemize}
@@ -126,6 +128,7 @@ Let's imagine a scenario. Alice wants to send a message to Bob through an online
     $$ Sig_{inner} = RingSign(Message, \{OTK, FK_{1...7}\}) $$
     $$ Key_{proof} = KDF(PRF_{Yubikey}(Hash(OTK))) $$
     $$ Proof = Encrypt_{AES-GCM}(Sig_{inner}, Key_{proof}) $$
+    where the hash of the $OTK$ is used as a salt to bind the proof key to the one-time signing key.
     \item \textbf{Outer Layer (The Transmission):}
     $$ Sig_{outer} = RingSign(Message || Hash(Sig_{inner}), \{OTK, FK_{1...7}\}) $$
     \item \textbf{Verification:} Upon decryption, the Linkable Tag of $Sig_{inner}$ must equal the Linkable Tag of $Sig_{outer}$.
@@ -134,7 +137,7 @@ Let's imagine a scenario. Alice wants to send a message to Bob through an online
 \section{System Design}
 
 \subsection{Architecture Overview}
-The system follows a \textbf{Thick Client, Thin Server} architecture. The server acts purely as a bulletin board and relay, possessing zero knowledge of user identities or private keys.
+The system follows a \textbf{Thick Client, Thin Server} architecture. The server acts purely as a bulletin board and relay, possessing zero knowledge of user identities or private keys, and is explicitly excluded from the trusted computing base.
 
 \subsection{Component Diagram}
 \begin{verbatim}
