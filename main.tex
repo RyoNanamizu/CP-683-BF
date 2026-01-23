@@ -17,7 +17,7 @@
 \pagestyle{fancy}
 \fancyhf{}
 \rhead{\textbf{Proposal}}
-\lhead{Anonymous Identification Verification System}
+\lhead{01 - CP683-BF - 1/23/2025}
 \cfoot{\thepage}
 
 % Custom Colors
@@ -68,7 +68,7 @@ Project AIVS (Anonymous Identification Verification System) is a cryptographic e
 
 \newpage
 
-\section{Epic}
+\section{Problem Motivation}
 
 \subsection{What is the problem?}
 In current cryptographic systems, users typically face a binary choice:
@@ -85,7 +85,7 @@ There is a lack of infrastructure that supports \textit{conditional anonymity}. 
     \item \textbf{Objective C:} A "Challenge-Response" flow where the sender can prove authorship by unlocking a cryptographic proof using their physical Yubikey.
 \end{itemize}
 
-\section{Story}
+\section{Use Case and Motivation Overview}
 
 Let's imagine a scenario. Alice wants to send a message to Bob through an online platform anonymously. Bob wants to confirm the message what he received is not tampered with. Additionally, once Bob wants to confirm the identity of the sender, and Alice claims she is the sender, Bob is able to verify her identity.
 
@@ -168,26 +168,65 @@ The system follows a \textbf{Thick Client, Thin Server} architecture. The server
 
 \subsection{Sprint 0: Feasibility \& PoC (2 Weeks)}
 \begin{itemize}
-    \item \textbf{Goal:} Validate Yubikey PRF behavior in Chrome/Firefox.
-    \item \textbf{Deliverable:} A minimal script that inputs a salt and outputs a consistent AES key using a Yubikey.
+    \item \textbf{Goal:} Validate WebAuthn and Yubikey PRF behavior in the Chrome/Firefox browser.
+    \item \textbf{Tasks:}
+    \begin{itemize}
+        \item Test WebAuthn registration and authentication process in Chrome/Firefox browser
+        \item Validate PRF output by using identical salts
+        \item Derive AES keys from PRF output
+    \end{itemize}
+    \item \textbf{Deliverable:} A minimal browser-based script that inputs a salt and outputs a consistent AES key using a Yubikey.
 \end{itemize}
 
-\subsection{Milestones 1: Core Cryptography Module}
+\subsection{Milestone 1: Core Cryptography Module (2 weeks)}
 \begin{itemize}
     \item \textbf{Goal:} Implement Linkable Ring Signatures in TypeScript/WASM.
+    \item \textbf{Tasks:}
+    \begin{itemize}
+        \item Implement a one-time key from WebAuthn
+        \item Implement linkable ring signatures (1-of-8) in Typescript/WASM
+        \item Implement linkability tag generation and verification
+        \item Unit tests for signing, verification, and tag
+    \end{itemize}
     \item \textbf{Deliverable:} Unit tests proving 1-of-8 signing and verification, and tag linking.
 \end{itemize}
 
-\subsection{Milestones 2: Backend \& Basic UI}
+\subsection{Milestone 2: Backend \& Basic UI (2 weeks)}
 \begin{itemize}
-    \item \textbf{Goal:} Message transport.
+    \item \textbf{Goal:} Message transport and basic user interaction.
+    \item \textbf{Tasks:}
+    \begin{itemize}
+        \item Implement Node.js backend for storing and retrieving message
+        \item Design message, signature, and proof data format
+        \item Design and implement a React frontend user interface for composing and viewing messages
+        \item Integrate WebAuthn for user login
+    \end{itemize}
     \item \textbf{Deliverable:} Node.js API to store/retrieve message blobs. React UI to compose messages.
 \end{itemize}
 
-\subsection{Milestones 3: Integration \& The "Reveal" Flow}
+\subsection{Milestone 3: Integration \& The "Reveal" Flow (2 weeks)}
 \begin{itemize}
-    \item \textbf{Goal:} Connect crypto with UI.
+    \item \textbf{Goal:} Connect crypto with UI and demonstrate end-to-end flow.
+    \item \textbf{Tasks:}
+    \begin{itemize}
+        \item Integrate ring signature into the message
+        \item Integrate proof encryption and decryption using YubiKey PRF
+        \item Implement complete end-to-end flow from proof request, decryption, and verification
+        \item Validate and test the flow
+    \end{itemize}
     \item \textbf{Deliverable:} End-to-End flow: Alice sends anonymous msg $\rightarrow$ Bob requests proof $\rightarrow$ Alice reveals $\rightarrow$ Bob verifies.
+\end{itemize}
+
+\subsection{Milestone 4: Evaluation and Documentation (1 week)}
+\begin{itemize}
+    \item \textbf{Goal:} Testing the system and prepare for evaluation and document
+    \item \textbf{Tasks:}
+    \begin{itemize}
+        \item Bug fixes and handle edge-cases if persist
+        \item Security, threat, and performance review
+        \item Documentation
+    \end{itemize}
+    \item \textbf{Deliverable:} A stable prototype with documentation.
 \end{itemize}
 
 \end{document}
