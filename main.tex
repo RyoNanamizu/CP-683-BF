@@ -17,7 +17,7 @@
 \pagestyle{fancy}
 \fancyhf{}
 \rhead{\textbf{Proposal}}
-\lhead{Anonymous Identification Verification System}
+\lhead{01 - CP683-BF - 1/23/2025}
 \cfoot{\thepage}
 
 % Custom Colors
@@ -68,41 +68,43 @@ Project AIVS (Anonymous Identification Verification System) is a cryptographic e
 
 \newpage
 
-\section{Epic}
+\section{Problem Motivation}
 
-\subsection{What is the problem?}
+\subsection{Problem Statement}
 In current cryptographic systems, users typically face a binary choice:
 \begin{enumerate}
     \item \textbf{Signed Messages:} Authenticity is guaranteed, but privacy is compromised immediately (e.g., PGP).
     \item \textbf{Anonymous Messages:} Privacy is maintained, but credibility is low, and the author cannot later claim credit or reputation for the content (e.g., Tor-based drops).
 \end{enumerate}
-There is a lack of infrastructure that supports \textit{conditional anonymity}. Where a user can speak freely now and prove they spoke later, without relying on a trusted third party.
+There is a lack of infrastructure that supports \textit{conditional anonymity}: messages are anonymous by default, yet authorship can be proven later by the sender alone. Where a user can speak freely now and prove they spoke later, without relying on a trusted third party.
 
-\subsection{What is our goals?}
+\subsection{Objectives}
 \begin{itemize}
     \item \textbf{Objective A:} Anonymous message dispatching where the sender is mathematically hidden among a set of 7 decoys (1-of-8 Ring Signature).
     \item \textbf{Objective B:} Integrity verification by the recipient without identity knowledge.
     \item \textbf{Objective C:} A "Challenge-Response" flow where the sender can prove authorship by unlocking a cryptographic proof using their physical Yubikey.
 \end{itemize}
 
-\section{Story}
+\section{System Overview and Workflow}
 
-Let's imagine a scenario. Alice wants to send a message to Bob through an online platform anonymously. Bob wants to confirm the message what he received is not tampered with. Additionally, once Bob wants to confirm the identity of the sender, and Alice claims she is the sender, Bob is able to verify her identity.
+\subsection{System Roles and Trust Assumptions}
+The system involves three primary roles: the Sender, the Recipient, and a Backend Server, with a YubiKey hardware token participating in cryptographic operations. Both the Sender and the Recipient interact with the system through a web browser, while the backend server functions solely as a message relay and storage service.
 
-\subsection{How do we provide the solution?}
-\begin{enumerate}
-    \item \textbf{Message Composition:} Alice uses her browser with a connected Yubikey to compose a message. The Yubikey generates a One-Time Key (OTK) by some methods.
-    \item \textbf{Inner Ring Signature:} Alice creates an inner Ring Signature over the message using the OTK and 7 randomly generated fake keys. This signature proves that one of the keys signed the message, but not which one.
-    \item \textbf{Proof Encryption:} The inner signature is encrypted using a symmetric key derived from the PRF call on the Yubikey, ensuring only Alice can decrypt it later.
-    \item \textbf{Outer Ring Signature:} Alice then creates an outer Ring Signature over the message concatenated with the hash of the inner signature, again using the OTK and the same set of fake keys.
-    \item \textbf{Message Transmission:} The outer signature, along with the encrypted inner signature (the Proof), is sent to Bob.
-    \item \textbf{Verification by Bob:} Upon receiving the message, Bob verifies the outer Ring Signature to ensure message integrity without knowing who signed it.
-    \item \textbf{Challenge for Proof:} If Bob wants to verify Alice's identity later, he sends the proof, and the signature to Alice.
-    \item \textbf{Proof Decryption:} Alice uses her Yubikey to derive the decryption key and decrypts the inner signature (the Proof).
-    \item \textbf{Final Verification:} Alice sends the decrypted inner signature to Bob, who verifies it against the original message. If valid, Bob confirms that Alice was indeed the sender.
-\end{enumerate}
+All cryptographic operations are performed locally on the client side with the assistance of the YubiKey. The server does not generate, store, or process private keys, and only handles opaque data blobs, including messages, signatures, and encrypted proofs. The YubiKey is used to provide hardware-bound PRF outputs that participate in one-time key derivation and proof encryption, without exposing secret material to the browser or operating system.
 
-\section{Technical Model}
+The system does not maintain a global signing key registry. Each message is associated with a freshly derived one-time key, and no signing keys are reused across messages.
+
+\subsection{Workflow}
+The workflow consists of an anonymous message transmission phase followed by an optional identity verification phase.
+
+During message transmission, the Sender composes a message using a browser-based client with a connected YubiKey. A one-time key is derived with the participation of the YubiKey and used, together with a fixed set of randomly generated decoy keys, to construct a ring signature over the message. To support future authorship verification, an additional inner ring signature is generated and encrypted as a proof using a symmetric key derived from the YubiKey PRF output. An outer ring signature is then computed over the message concatenated with the hash of the encrypted proof. The message, outer signature, and encrypted proof are transmitted to the Recipient via the backend server.
+
+Upon receipt, the Recipient verifies the outer ring signature to confirm message integrity and authenticity, while the Sender’s identity remains hidden within the anonymity set. The encrypted proof is not required for this initial verification.
+
+If identity verification is later requested, the Recipient sends the original message, signature, and encrypted proof to the claimed Sender. Using the same YubiKey, the Sender derives the corresponding decryption key and decrypts the proof to reveal the inner ring signature. The decrypted signature is returned to the Recipient, who verifies its validity and linkability against the original message and signature to confirm authorship.
+
+
+\section{Methodology and Technical Design}
 
 \subsection{Security Model}
 \begin{itemize}
@@ -126,6 +128,7 @@ Let's imagine a scenario. Alice wants to send a message to Bob through an online
     $$ Sig_{inner} = RingSign(Message, \{OTK, FK_{1...7}\}) $$
     $$ Key_{proof} = KDF(PRF_{Yubikey}(Hash(OTK))) $$
     $$ Proof = Encrypt_{AES-GCM}(Sig_{inner}, Key_{proof}) $$
+    where the hash of the $OTK$ is used as a salt to bind the proof key to the one-time signing key.
     \item \textbf{Outer Layer (The Transmission):}
     $$ Sig_{outer} = RingSign(Message || Hash(Sig_{inner}), \{OTK, FK_{1...7}\}) $$
     \item \textbf{Verification:} Upon decryption, the Linkable Tag of $Sig_{inner}$ must equal the Linkable Tag of $Sig_{outer}$.
@@ -134,7 +137,7 @@ Let's imagine a scenario. Alice wants to send a message to Bob through an online
 \section{System Design}
 
 \subsection{Architecture Overview}
-The system follows a \textbf{Thick Client, Thin Server} architecture. The server acts purely as a bulletin board and relay, possessing zero knowledge of user identities or private keys.
+The system follows a \textbf{Thick Client, Thin Server} architecture. The server acts purely as a bulletin board and relay, possessing zero knowledge of user identities or private keys, and is explicitly excluded from the trusted computing base.
 
 \subsection{Component Diagram}
 \begin{verbatim}
@@ -168,26 +171,65 @@ The system follows a \textbf{Thick Client, Thin Server} architecture. The server
 
 \subsection{Sprint 0: Feasibility \& PoC (2 Weeks)}
 \begin{itemize}
-    \item \textbf{Goal:} Validate Yubikey PRF behavior in Chrome/Firefox.
-    \item \textbf{Deliverable:} A minimal script that inputs a salt and outputs a consistent AES key using a Yubikey.
+    \item \textbf{Goal:} Validate WebAuthn and Yubikey PRF behavior in the Chrome/Firefox browser.
+    \item \textbf{Tasks:}
+    \begin{itemize}
+        \item Test WebAuthn registration and authentication process in Chrome/Firefox browser
+        \item Validate PRF output by using identical salts
+        \item Derive AES keys from PRF output
+    \end{itemize}
+    \item \textbf{Deliverable:} A minimal browser-based script that inputs a salt and outputs a consistent AES key using a Yubikey.
 \end{itemize}
 
-\subsection{Milestones 1: Core Cryptography Module}
+\subsection{Milestone 1: Core Cryptography Module (2 weeks)}
 \begin{itemize}
     \item \textbf{Goal:} Implement Linkable Ring Signatures in TypeScript/WASM.
+    \item \textbf{Tasks:}
+    \begin{itemize}
+        \item Implement a one-time key from WebAuthn
+        \item Implement linkable ring signatures (1-of-8) in Typescript/WASM
+        \item Implement linkability tag generation and verification
+        \item Unit tests for signing, verification, and tag
+    \end{itemize}
     \item \textbf{Deliverable:} Unit tests proving 1-of-8 signing and verification, and tag linking.
 \end{itemize}
 
-\subsection{Milestones 2: Backend \& Basic UI}
+\subsection{Milestone 2: Backend \& Basic UI (2 weeks)}
 \begin{itemize}
-    \item \textbf{Goal:} Message transport.
+    \item \textbf{Goal:} Message transport and basic user interaction.
+    \item \textbf{Tasks:}
+    \begin{itemize}
+        \item Implement Node.js backend for storing and retrieving message
+        \item Design message, signature, and proof data format
+        \item Design and implement a React frontend user interface for composing and viewing messages
+        \item Integrate WebAuthn for user login
+    \end{itemize}
     \item \textbf{Deliverable:} Node.js API to store/retrieve message blobs. React UI to compose messages.
 \end{itemize}
 
-\subsection{Milestones 3: Integration \& The "Reveal" Flow}
+\subsection{Milestone 3: Integration \& The "Reveal" Flow (2 weeks)}
 \begin{itemize}
-    \item \textbf{Goal:} Connect crypto with UI.
+    \item \textbf{Goal:} Connect crypto with UI and demonstrate end-to-end flow.
+    \item \textbf{Tasks:}
+    \begin{itemize}
+        \item Integrate ring signature into the message
+        \item Integrate proof encryption and decryption using YubiKey PRF
+        \item Implement complete end-to-end flow from proof request, decryption, and verification
+        \item Validate and test the flow
+    \end{itemize}
     \item \textbf{Deliverable:} End-to-End flow: Alice sends anonymous msg $\rightarrow$ Bob requests proof $\rightarrow$ Alice reveals $\rightarrow$ Bob verifies.
+\end{itemize}
+
+\subsection{Milestone 4: Evaluation and Documentation (1 week)}
+\begin{itemize}
+    \item \textbf{Goal:} Testing the system and prepare for evaluation and document
+    \item \textbf{Tasks:}
+    \begin{itemize}
+        \item Bug fixes and handle edge-cases if persist
+        \item Security, threat, and performance review
+        \item Documentation
+    \end{itemize}
+    \item \textbf{Deliverable:} A stable prototype with documentation.
 \end{itemize}
 
 \end{document}
