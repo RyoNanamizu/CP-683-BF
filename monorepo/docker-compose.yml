@@ -9,6 +9,7 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
@@ -55,7 +56,17 @@ services:
       CHOKIDAR_USEPOLLING: "true"
       WATCHPACK_POLLING: "true"
       # increase the inotify limit in some environments
-    command: ["pnpm", "--filter", "@repo/web", "dev", "--host", "0.0.0.0", "--port", "5173"]
+    command:
+      [
+        "pnpm",
+        "--filter",
+        "@repo/web",
+        "dev",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "5173",
+      ]
 
 volumes:
   pgdata:
