@@ -12,11 +12,23 @@ const pool = new Pool({
   database: process.env.PGDATABASE ?? "appdb",
 });
 
-app.get("/health", async () => ({ ok: true }));
+// wont check the db, just returns ok
+app.get("/healthz", async () => ({ ok: true }));
+
+// checks the db connection
+app.get("/readyz", async () => {
+  try {
+    await pool.query("SELECT 1 as ok");
+    return { ok: true, db: "up" };
+  } catch (e) {
+    // Fastify will return this error as 500
+    return app.httpErrors.serviceUnavailable("db down");
+  }
+});
 
 app.get("/hello", async () => {
   const r = await pool.query("SELECT NOW() as now");
   return { msg: hello("world"), now: r.rows[0].now };
 });
 
-app.listen({ host: "0.0.0.0", port: 3000 });
+await app.listen({ host: "0.0.0.0", port: 3000 });

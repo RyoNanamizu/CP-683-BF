@@ -1,9 +1,10 @@
 {
-  "name": "web",
+  "name": "@repo/web",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "predev": "pnpm -w exec tsc -p packages/shared/tsconfig.json",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
