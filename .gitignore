@@ -205,3 +205,26 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# LaTeX intermediate files
+*.aux
+*.bbl
+*.blg
+*.brf
+*.idx
+*.ind
+*.lof
+*.lot
+*.out
+*.toc
+*.acn
+*.acr
+*.alg
+*.glg
+*.glo
+*.gls
+*.fls
+*.log
+*.fdb_latexmk
+*.synctex.gz
+*.nav
