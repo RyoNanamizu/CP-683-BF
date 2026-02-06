@@ -4,7 +4,19 @@ import fastifySwaggerUi from "@fastify/swagger-ui";
 import { Pool } from "pg";
 import { hello } from "@repo/shared";
 import { KeyServices } from "./services/KeyServices";
-import { MessageRequest, MessageResponse } from "./interfaces/KeyInterfaces";
+import { WebAuthnService } from "./services/WebAuthnService";
+import {
+  MessageRequest,
+  MessageResponse,
+  RegisterBeginRequest,
+  RegisterBeginResponse,
+  RegisterFinishRequest,
+  RegisterFinishResponse,
+  LoginBeginRequest,
+  LoginBeginResponse,
+  LoginFinishRequest,
+  LoginFinishResponse,
+} from "./interfaces/KeyInterfaces";
 
 const app = Fastify({ logger: true });
 
@@ -38,6 +50,7 @@ const pool = new Pool({
 
 // Initialize services with pool
 const keyServices = new KeyServices(pool);
+const webAuthnService = new WebAuthnService(pool);
 
 // wont check the db, just returns ok
 app.get(
@@ -256,6 +269,178 @@ app.get<{ Params: { message_id: string } }>(
         error: errorMessage,
       });
     }
+  },
+);
+
+// POST /auth/register/begin
+app.post<{ Body: RegisterBeginRequest }>(
+  "/register/challenge",
+  {
+    schema: {
+      description: "Start WebAuthn registration - generate challenge",
+      body: {
+        type: "object",
+        required: ["handle"],
+        properties: {
+          handle: {
+            type: "string",
+            description: "User handle (username)",
+          },
+        },
+      },
+      response: {
+        200: {
+          description: "Registration challenge generated",
+          type: "object",
+        },
+        400: {
+          description: "Invalid request",
+          type: "object",
+          properties: {
+            error: { type: "string" },
+          },
+        },
+      },
+    },
+  },
+  async (request, reply): Promise<RegisterBeginResponse> => {
+    try {
+      const response = await webAuthnService.registerBegin(request.body);
+      return response;
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Registration failed";
+      return reply.code(400).send({ error: errorMessage });
+    }
+  },
+);
+
+// POST /auth/register/finish
+app.post<{ Body: RegisterFinishRequest }>(
+  "/register/publickey",
+  {
+    schema: {
+      description:
+        "Complete WebAuthn registration - verify and store credential",
+      body: {
+        type: "object",
+        required: ["id", "response"],
+        properties: {
+          id: {
+            type: "string",
+            description: "Credential ID",
+          },
+          response: {
+            type: "object",
+            properties: {
+              clientDataJSON: { type: "string" },
+              attestationObject: { type: "string" },
+            },
+          },
+        },
+      },
+      response: {
+        200: {
+          description: "Registration successful",
+          type: "object",
+          properties: {
+            success: { type: "boolean" },
+            handle: { type: "string" },
+            credentialId: { type: "string" },
+          },
+        },
+      },
+    },
+  },
+  async (request, reply): Promise<RegisterFinishResponse> => {
+    const response = await webAuthnService.registerFinish(request.body);
+    return reply.code(response.success ? 200 : 400).send(response);
+  },
+);
+
+// POST /auth/login/begin
+app.post<{ Body: LoginBeginRequest }>(
+  "/auth/session",
+  {
+    schema: {
+      description: "Start WebAuthn login - generate challenge",
+      body: {
+        type: "object",
+        required: ["handle"],
+        properties: {
+          handle: {
+            type: "string",
+            description: "User handle (username)",
+          },
+        },
+      },
+      response: {
+        200: {
+          description: "Login challenge generated",
+          type: "object",
+        },
+        400: {
+          description: "Handle not found",
+          type: "object",
+          properties: {
+            error: { type: "string" },
+          },
+        },
+      },
+    },
+  },
+  async (request, reply): Promise<LoginBeginResponse> => {
+    try {
+      const response = await webAuthnService.loginBegin(request.body);
+      return response;
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Login initiation failed";
+      return reply.code(400).send({ error: errorMessage });
+    }
+  },
+);
+
+// POST /auth/login/finish
+app.post<{ Body: LoginFinishRequest }>(
+  "/auth/login/finish",
+  {
+    schema: {
+      description: "Complete WebAuthn login - verify signature",
+      body: {
+        type: "object",
+        required: ["id", "response"],
+        properties: {
+          id: {
+            type: "string",
+            description: "Credential ID",
+          },
+          response: {
+            type: "object",
+            properties: {
+              authenticatorData: { type: "string" },
+              clientDataJSON: { type: "string" },
+              signature: { type: "string" },
+            },
+          },
+        },
+      },
+      response: {
+        200: {
+          description: "Login successful",
+          type: "object",
+          properties: {
+            success: { type: "boolean" },
+            handle: { type: "string" },
+            sessionToken: { type: "string" },
+          },
+        },
+      },
+    },
+  },
+  async (request, reply): Promise<LoginFinishResponse> => {
+    const response = await webAuthnService.loginFinish(request.body);
+    return reply.code(response.success ? 200 : 400).send(response);
   },
 );
 
