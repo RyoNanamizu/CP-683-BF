@@ -152,7 +152,7 @@ build/
 # Exception: include node_modules in api and web folders
 monorepo/apps/api/node_modules/
 monorepo/apps/web/node_modules/
-
+monorepo/apps/api/tests/
 # Spyder project settings
 .spyderproject
 .spyproject

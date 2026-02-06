@@ -6,6 +6,10 @@ import { hello } from "@repo/shared";
 import { KeyServices } from "./services/KeyServices";
 import { WebAuthnService } from "./services/WebAuthnService";
 import {
+  verifySessionToken,
+  AuthenticatedRequest,
+} from "./middleware/authMiddleware";
+import {
   MessageRequest,
   MessageResponse,
   RegisterBeginRequest,
@@ -272,7 +276,7 @@ app.get<{ Params: { message_id: string } }>(
   },
 );
 
-// POST /auth/register/begin
+// POST /register/challenge
 app.post<{ Body: RegisterBeginRequest }>(
   "/register/challenge",
   {
@@ -292,6 +296,40 @@ app.post<{ Body: RegisterBeginRequest }>(
         200: {
           description: "Registration challenge generated",
           type: "object",
+          properties: {
+            challenge: { type: "string" },
+            rp: {
+              type: "object",
+              properties: {
+                name: { type: "string" },
+                id: { type: "string" },
+              },
+            },
+            user: {
+              type: "object",
+              properties: {
+                id: { type: "string" },
+                name: { type: "string" },
+              },
+            },
+            pubKeyCredParams: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  type: { type: "string" },
+                  alg: { type: "number" },
+                },
+              },
+            },
+            authenticatorSelection: {
+              type: "object",
+              properties: {
+                userVerification: { type: "string" },
+              },
+            },
+            attestation: { type: "string" },
+          },
         },
         400: {
           description: "Invalid request",
@@ -315,7 +353,7 @@ app.post<{ Body: RegisterBeginRequest }>(
   },
 );
 
-// POST /auth/register/finish
+// POST /register/publickey
 app.post<{ Body: RegisterFinishRequest }>(
   "/register/publickey",
   {
@@ -358,9 +396,9 @@ app.post<{ Body: RegisterFinishRequest }>(
   },
 );
 
-// POST /auth/login/begin
+// POST /auth/challenge
 app.post<{ Body: LoginBeginRequest }>(
-  "/auth/session",
+  "/auth/challenge",
   {
     schema: {
       description: "Start WebAuthn login - generate challenge",
@@ -378,6 +416,21 @@ app.post<{ Body: LoginBeginRequest }>(
         200: {
           description: "Login challenge generated",
           type: "object",
+          properties: {
+            challenge: { type: "string" },
+            rpId: { type: "string" },
+            allowCredentials: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  type: { type: "string" },
+                  id: { type: "string" },
+                },
+              },
+            },
+            userVerification: { type: "string" },
+          },
         },
         400: {
           description: "Handle not found",
@@ -401,9 +454,9 @@ app.post<{ Body: LoginBeginRequest }>(
   },
 );
 
-// POST /auth/login/finish
+// POST /auth/challenge
 app.post<{ Body: LoginFinishRequest }>(
-  "/auth/login/finish",
+  "/auth/session",
   {
     schema: {
       description: "Complete WebAuthn login - verify signature",
@@ -441,6 +494,125 @@ app.post<{ Body: LoginFinishRequest }>(
   async (request, reply): Promise<LoginFinishResponse> => {
     const response = await webAuthnService.loginFinish(request.body);
     return reply.code(response.success ? 200 : 400).send(response);
+  },
+);
+
+// Protected endpoint example - requires valid session token
+// Usage: GET /api/user/profile
+// Headers: Authorization: Bearer <sessionToken>
+// OR x-session-token: <sessionToken>
+app.get(
+  "/api/user/profile",
+  {
+    schema: {
+      description:
+        "Get authenticated user profile - requires valid session token",
+      headers: {
+        type: "object",
+        properties: {
+          authorization: {
+            type: "string",
+            description: "Bearer token: Authorization: Bearer <sessionToken>",
+          },
+          "x-session-token": {
+            type: "string",
+            description: "Alternative: Session token in header",
+          },
+        },
+      },
+      response: {
+        200: {
+          description: "User profile retrieved successfully",
+          type: "object",
+          properties: {
+            success: { type: "boolean" },
+            handle: { type: "string" },
+            message: { type: "string" },
+          },
+        },
+        401: {
+          description: "Unauthorized - invalid or missing session token",
+          type: "object",
+          properties: {
+            success: { type: "boolean" },
+            error: { type: "string" },
+          },
+        },
+      },
+    },
+  },
+  async (request: AuthenticatedRequest, reply) => {
+    // Verify session token
+    const verifyResult = await verifySessionToken(pool, request, reply);
+    if (verifyResult !== undefined) return verifyResult;
+
+    // User is authenticated, return profile
+    return {
+      success: true,
+      handle: request.user?.handle,
+      message: `Welcome ${request.user?.handle}! This is a protected endpoint.`,
+    };
+  },
+);
+
+// Protected endpoint example - list user's messages
+// Usage: GET /api/user/messages
+// Headers: Authorization: Bearer <sessionToken>
+app.get(
+  "/api/user/messages",
+  {
+    schema: {
+      description:
+        "Get authenticated user's messages - requires valid session token",
+      response: {
+        200: {
+          description: "Messages retrieved successfully",
+          type: "object",
+          properties: {
+            success: { type: "boolean" },
+            handle: { type: "string" },
+            messages: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  id: { type: "string" },
+                  message: { type: "string" },
+                  created_at: { type: "string" },
+                },
+              },
+            },
+          },
+        },
+        401: {
+          description: "Unauthorized",
+          type: "object",
+          properties: {
+            success: { type: "boolean" },
+            error: { type: "string" },
+          },
+        },
+      },
+    },
+  },
+  async (request: AuthenticatedRequest, reply) => {
+    // Verify session token
+    const verifyResult = await verifySessionToken(pool, request, reply);
+    if (verifyResult !== undefined) return verifyResult;
+
+    // Get messages for this user
+    const result = await pool.query(
+      `SELECT id, message, created_at FROM messages 
+       WHERE id IN (
+         SELECT id FROM messages ORDER BY created_at DESC LIMIT 10
+       )`,
+    );
+
+    return {
+      success: true,
+      handle: request.user?.handle,
+      messages: result.rows,
+    };
   },
 );
 

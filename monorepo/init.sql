@@ -40,3 +40,18 @@ CREATE TABLE IF NOT EXISTS challenges (
 -- Create index on handle and expiry for cleanup
 CREATE INDEX IF NOT EXISTS idx_challenges_handle_expires ON challenges(handle, expires_at);
 
+-- Create sessions table for storing authentication sessions
+CREATE TABLE IF NOT EXISTS sessions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  handle VARCHAR(255) NOT NULL,
+  session_token TEXT NOT NULL UNIQUE,
+  expires_at TIMESTAMP NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT now(),
+  updated_at TIMESTAMP NOT NULL DEFAULT now()
+);
+
+-- Create index on session_token and expires_at for fast lookups and cleanup
+CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(session_token);
+CREATE INDEX IF NOT EXISTS idx_sessions_handle ON sessions(handle);
+CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
+

@@ -212,6 +212,14 @@ export class WebAuthnService {
       // Generate session token
       const sessionToken = crypto.randomBytes(32).toString("hex");
 
+      // Store session token (expires in 24 hours)
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      await this.pool.query(
+        `INSERT INTO sessions (handle, session_token, expires_at)
+         VALUES ($1, $2, $3)`,
+        [handle, sessionToken, expiresAt],
+      );
+
       // Clean up challenge
       await this.pool.query(
         `DELETE FROM challenges WHERE handle = $1 AND challenge_type = 'login'`,
