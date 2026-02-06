@@ -1,3 +1,6 @@
+-- Create database if it doesn't exist
+CREATE DATABASE IF NOT EXISTS "CP683";
+
 -- Create messages table if it doesn't exist
 CREATE TABLE IF NOT EXISTS messages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
