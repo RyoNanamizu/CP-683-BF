@@ -122,4 +122,3 @@ export interface LoginFinishResponse {
   sessionToken?: string;
   error?: string;
 }
-}

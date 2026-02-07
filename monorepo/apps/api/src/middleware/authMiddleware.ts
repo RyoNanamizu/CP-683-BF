@@ -6,6 +6,9 @@ export interface AuthenticatedRequest extends FastifyRequest {
     handle: string;
     sessionToken: string;
   };
+  route?: {
+    requiresAuth?: boolean;
+  };
 }
 
 /**
@@ -79,7 +82,7 @@ export async function registerAuthMiddleware(app: any, pool: Pool) {
     "onRequest",
     async (request: AuthenticatedRequest, reply: FastifyReply) => {
       // Check if route requires authentication (custom property on route)
-      if ((request.route as any)?.requiresAuth) {
+      if (request.route?.requiresAuth) {
         await verifySessionToken(pool, request, reply);
       }
     },
