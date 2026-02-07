@@ -153,6 +153,7 @@ build/
 monorepo/apps/api/node_modules/
 monorepo/apps/web/node_modules/
 monorepo/apps/api/tests/
+
 # Spyder project settings
 .spyderproject
 .spyproject
