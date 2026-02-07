@@ -1,4 +1,3 @@
-import React from "react";
 import ReactDOM from "react-dom/client";
 import { Button } from "antd";
 import { hello } from "@repo/shared";
