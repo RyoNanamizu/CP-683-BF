@@ -1,17 +1,11 @@
-FROM node:20-slim AS builder
-
+FROM node:20-slim
 WORKDIR /app
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.option.json ./
 COPY packages ./packages
 COPY apps/web ./apps/web
 
-RUN corepack enable
-RUN pnpm install --frozen-lockfile
-RUN pnpm -r build
+RUN corepack enable && pnpm install --frozen-lockfile
 
-FROM nginx:alpine
-
-COPY --from=builder /app/apps/web/dist /usr/share/nginx/html
-
-EXPOSE 80
+EXPOSE 5173
+CMD ["pnpm", "--filter", "@repo/web", "dev", "--host", "0.0.0.0", "--port", "5173"]

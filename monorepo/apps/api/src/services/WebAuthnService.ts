@@ -14,9 +14,9 @@ import {
 export class WebAuthnService {
   private rpName = "AIVS";
   private rpId = "aivs";
-  private origin = "http://localhost:5173";
+  private origin = "http://localhost";
 
-  constructor(private pool: Pool) {}
+  constructor(private pool: Pool) { }
 
   /**
    * Start WebAuthn registration - generate challenge
