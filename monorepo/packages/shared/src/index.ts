@@ -1,3 +1,5 @@
+import { CreateCredentialOptions, ErrorResponse, LoginChallenge } from "./types";
+
 export type User = { id: string; name: string };
 export const hello = (name: string) => `hello ${name}`;
 export function base64urlToArrayBuffer(base64url: string): ArrayBuffer {
@@ -10,3 +12,14 @@ export function base64urlToArrayBuffer(base64url: string): ArrayBuffer {
 
   return bytes.buffer;
 }
+export const fetchChallenge = async (handle: string, endpoint: string) => {
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ handle }),
+  });
+  return res.json() as Promise<CreateCredentialOptions | LoginChallenge | ErrorResponse>;
+};
+
+export * from "./types";
+export * from "./constants";
