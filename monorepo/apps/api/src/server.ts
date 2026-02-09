@@ -2,6 +2,7 @@ import Fastify from "fastify";
 import fastifySwagger from "@fastify/swagger";
 import fastifySwaggerUi from "@fastify/swagger-ui";
 import { Pool } from "pg";
+import sensible from "@fastify/sensible";
 import { hello } from "@repo/shared";
 import { KeyServices } from "./services/KeyServices";
 import { WebAuthnService } from "./services/WebAuthnService";
@@ -43,13 +44,14 @@ await app.register(fastifySwagger, {
 await app.register(fastifySwaggerUi, {
   routePrefix: "/docs",
 });
+await app.register(sensible);
 
 const pool = new Pool({
   host: process.env.PGHOST ?? "db",
   port: Number(process.env.PGPORT ?? "5432"),
   user: process.env.PGUSER ?? "postgres",
-  password: process.env.PGPASSWORD ?? "postgres",
-  database: process.env.PGDATABASE ?? "appdb",
+  password: process.env.PGPASSWORD ?? "1q2w3e4r5t",
+  database: process.env.PGDATABASE ?? "CP683",
 });
 
 // Initialize services with pool

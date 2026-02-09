@@ -238,3 +238,10 @@ __marimo__/
 *.fdb_latexmk
 *.synctex.gz
 *.nav
+
+# pnpm build
+node_modules
+dist
+build
+.vite
+coverage
