@@ -20,6 +20,18 @@ export const fetchChallenge = async (handle: string, endpoint: string) => {
   });
   return res.json() as Promise<CreateCredentialOptions | LoginChallenge | ErrorResponse>;
 };
+export function fromBufferSource(input: BufferSource) {
+  let bytes: Uint8Array;
+
+  if (input instanceof ArrayBuffer) {
+    bytes = new Uint8Array(input);
+  } else {
+    bytes = new Uint8Array(input.buffer, input.byteOffset, input.byteLength);
+  }
+
+  return bytes;
+}
 
 export * from "./types";
 export * from "./constants";
+export * from "./utils";

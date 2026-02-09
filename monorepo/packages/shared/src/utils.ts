@@ -46,16 +46,41 @@ export interface LRSSignatureLight {
 }
 
 
+/**
+ * Generates a Linkable Ring Signature (LRS) for a message using a ring of public keys.
+ * 
+ * @param message - The message to be signed as a string
+ * @param pubKeys - Array of public keys in hexadecimal format representing the ring
+ * @param signerIndex - Index of the signer's public key within the ring (0-based)
+ * @param privKey - The signer's private key in hexadecimal format
+ * @returns {LRSSignature} An object containing:
+ *   - `c0`: The initial hash value as a hex string
+ *   - `r`: Array of response values as hex strings
+ *   - `I`: The linkability tag as a hex string
+ *   - `ring`: The original array of public keys
+ * 
+ * @throws {Error} If signerIndex is out of bounds or invalid cryptographic operations fail
+ * 
+ * @example
+ * ```typescript
+ * const signature = generateLRS(
+ *   "hello world",
+ *   ["0x...", "0x...", "0x..."],
+ *   1,
+ *   "0x..."
+ * );
+ * ```
+ */
 export function generateLRS(
     message: string,
     pubKeys: string[],
     signerIndex: number,
-    privKey: Uint8Array
+    privKey: string
 ): LRSSignature {
 
     const n = pubKeys.length;
     const ring = pubKeys.map(pk => RistrettoPoint.fromHex(pk));
-    const x = bytesToNumberLE(privKey);
+    const x = bytesToNumberLE(hexToBytes(privKey));
     const P_i = ring[signerIndex];
 
     const Hp = H_p(P_i.toBytes());
@@ -115,9 +140,28 @@ export function verifyLRS(
     return c[0] === BigInt('0x' + sig.c0);
 }
 
-export const generateKeyPair = () => {
+/**
+ * Generates an Ed25519 key pair using ristretto255 elliptic curve cryptography.
+ * 
+ * @param seed - Optional 32 bytes seed value as Uint8Array for deterministic key generation.
+ *               If not provided, a random secret key will be generated.
+ * 
+ * @returns An object containing the generated key pair:
+ *          - privateKey: hex-encoded secret key string
+ *          - publicKey: hex-encoded public key string derived from the secret key
+ * 
+ * @example
+ * // Generate a random key pair
+ * const { privateKey, publicKey } = generateKeyPair();
+ * 
+ * @example
+ * // Generate a deterministic key pair from a seed
+ * const seed = new Uint8Array(32);
+ * const { privateKey, publicKey } = generateKeyPair(seed);
+ */
+export const generateKeyPair = (seed?: Uint8Array) => {
     // generate a random secret key valid for ristretto255
-    const secretKey = ed25519.utils.randomSecretKey();
+    const secretKey = ed25519.utils.randomSecretKey(seed);
     // compute the public key from the secret key
     const x = bytesToNumberLE(secretKey);
     const publicKeyPoint = G.multiply(x);

@@ -1,46 +1,13 @@
-import { base64urlToArrayBuffer } from "@repo/shared";
+import { base64urlToArrayBuffer, fetchChallenge, PRF_NOT_ENABLED_ERROR, SESSION_TOKEN_KEY, USER_EXISTS_ERROR } from "@repo/shared";
 import "antd/dist/reset.css";
 import { Button, Input, message, Space } from 'antd';
 import { useCallback, useEffect, useState } from "react";
 import type { MessageInstance } from "antd/es/message/interface";
+import type { CreateCredentialOptions, LoginChallenge } from "@repo/shared"
+import { GenerateKey } from "./generateKey";
 
-const USER_EXISTS_ERROR = "Handle already registered" as const;
-const SESSION_TOKEN_KEY = "sessionToken" as const;
 
-type CreateCredentialOptions = {
-    challenge: string;
-    rp: {
-        name: string;
-        id: string;
-    };
-    user: {
-        id: string;
-        name: string;
-    };
-    pubKeyCredParams: Array<{
-        type: "public-key";
-        alg: number;
-    }>;
-    authenticatorSelection: {
-        userVerification: "required";
-    };
-    attestation: "direct";
-};
 
-type ErrorResponse = {
-    error: string;
-};
-
-type LoginChallenge = {
-    description: string;
-    challenge: string;
-    rpId: string;
-    allowCredentials: Array<{
-        type: "public-key";
-        id: string;
-    }>;
-    userVerification: string;
-};
 
 // type RegistrationSuccessResponse = {
 //     success: boolean;
@@ -54,14 +21,7 @@ type LoginSuccessResponse = {
     sessionToken: string;
 };
 
-const fetchChallenge = async (handle: string, endpoint: string) => {
-    const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ handle }),
-    });
-    return res.json() as Promise<CreateCredentialOptions | LoginChallenge | ErrorResponse>;
-};
+
 
 const handleRegistration = async (data: CreateCredentialOptions) => {
     const publicKeyCredential = await navigator.credentials.create({
@@ -74,10 +34,17 @@ const handleRegistration = async (data: CreateCredentialOptions) => {
                 displayName: data.user.name,
             },
             pubKeyCredParams: data.pubKeyCredParams,
+            extensions: {
+                "prf": {}
+            }
         },
     }) as PublicKeyCredential | null;
 
     if (!publicKeyCredential) return;
+
+    const clientExtensions = publicKeyCredential.getClientExtensionResults();
+
+    if (!(clientExtensions.prf && clientExtensions.prf.enabled)) throw new Error(PRF_NOT_ENABLED_ERROR);
 
     const response = publicKeyCredential.response as AuthenticatorAttestationResponse;
     const registerRes = await fetch("/api/register/publickey", {
@@ -195,6 +162,7 @@ function Login() {
                 <Input placeholder="User Name" value={username} onChange={e => setUsername(e.target.value)} />
                 <Button type="primary" onClick={() => getChallengeWithMessage(username)}>Login</Button>
             </Space.Compact>
+            <GenerateKey username={username} />
         </div>
     ) : (
         <div style={{ padding: 24 }}>
