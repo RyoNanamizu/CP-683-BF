@@ -1,18 +1,10 @@
-import React from "react";
-import ReactDOM from "react-dom/client";
-import { Button } from "antd";
-import { hello } from "@repo/shared";
-import "antd/dist/reset.css";
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
+import './index.css'
+import App from './App.tsx'
 
-function App() {
-  return (
-    <div style={{ padding: 24 }}>
-      <h1>{hello("monorepo")}</h1>
-      <Button type="primary" onClick={() => fetch("/api/hello").then(r => r.json()).then(console.log)}>
-        Call API
-      </Button>
-    </div>
-  );
-}
-
-ReactDOM.createRoot(document.getElementById("root")!).render(<App />);
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+)
