@@ -1,5 +1,4 @@
 import { ristretto255, ed25519, ristretto255_hasher } from '@noble/curves/ed25519.js';
-import { sha512 } from '@noble/hashes/sha2.js';
 import { bytesToHex, hexToBytes, bytesToNumberLE, concatBytes } from '@noble/curves/utils.js';
 import { CURVE_DST } from './constants';
 const RistrettoPoint = ristretto255.Point;
@@ -160,12 +159,9 @@ export function verifyLRS(
  * const { privateKey, publicKey } = generateKeyPair(seed);
  */
 export const generateKeyPair = (seed?: Uint8Array) => {
-    // generate a random secret key valid for ristretto255
     const secretKey = ed25519.utils.randomSecretKey(seed);
-    // compute the public key from the secret key
-    const x = bytesToNumberLE(secretKey);
-    const publicKeyPoint = G.multiply(x);
-    const publicKey = publicKeyPoint.toHex();
+    const x = RistrettoPoint.Fn.fromBytes(secretKey)
+    const publicKey = G.multiply(x).toHex();
     return {
         privateKey: bytesToHex(secretKey), // Return hex string directly
         publicKey: publicKey // Return hex string directly

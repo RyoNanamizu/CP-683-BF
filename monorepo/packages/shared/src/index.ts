@@ -13,6 +13,7 @@ export function base64urlToArrayBuffer(base64url: string): ArrayBuffer {
   return bytes.buffer;
 }
 export const fetchChallenge = async (handle: string, endpoint: string) => {
+  console.log("fetching challenge for handle:", handle);
   const res = await fetch(endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

@@ -162,13 +162,14 @@ function Login() {
                 <Input placeholder="User Name" value={username} onChange={e => setUsername(e.target.value)} />
                 <Button type="primary" onClick={() => getChallengeWithMessage(username)}>Login</Button>
             </Space.Compact>
-            <GenerateKey username={username} />
         </div>
     ) : (
         <div style={{ padding: 24 }}>
             {contextHolder}
             <h1>Welcome, {currentUser}</h1>
             <Button type="primary" onClick={() => { clearSession(); setCurrentUser(null); }}>Logout</Button>
+            <GenerateKey username={currentUser} />
+
         </div>
     );
 }

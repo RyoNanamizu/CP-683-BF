@@ -3,10 +3,11 @@ import { Button } from "antd"
 
 const generateKey = async (username: string) => {
     const challengeRes = await fetchChallenge(username, "/api/auth/challenge") as LoginChallenge
+    console.log(challengeRes);
     const publicKeyCredential = await navigator.credentials.get({
         publicKey: {
             challenge: base64urlToArrayBuffer(challengeRes.challenge),
-            rpId: challengeRes.rpId,
+            rpId: document.location.hostname,
             allowCredentials: challengeRes.allowCredentials.map(cred => ({
                 type: cred.type,
                 id: base64urlToArrayBuffer(cred.id),
