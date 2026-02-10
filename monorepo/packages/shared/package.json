@@ -1,6 +1,6 @@
 {
   "name": "@repo/shared",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
   "description": "",
@@ -19,8 +19,12 @@
   "author": "",
   "license": "ISC",
   "packageManager": "pnpm@10.28.2",
-  "dependencies": {},
   "devDependencies": {
     "tsup": "^8.5.1"
+  },
+  "dependencies": {
+    "@noble/curves": "^2.0.1",
+    "@noble/hashes": "^2.0.1",
+    "typescript": "~5.9.3"
   }
 }
