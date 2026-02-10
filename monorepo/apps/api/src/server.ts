@@ -22,7 +22,7 @@ import {
   LoginFinishResponse,
 } from "./interfaces/KeyInterfaces";
 
-const app = Fastify({ logger: true });
+const app = Fastify({ logger: true, trustProxy: true });
 
 // Register Swagger
 await app.register(fastifySwagger, {
@@ -32,8 +32,9 @@ await app.register(fastifySwagger, {
       description: "API with PostgreSQL backend",
       version: "1.0.0",
     },
-    host: "localhost:3000",
-    schemes: ["http"],
+    // don't fix host/schemes; let the UI adapt to the current access entry point.
+    // host: "localhost:3000",
+    // schemes: ["http"],
     consumes: ["application/json"],
     produces: ["application/json"],
   },

@@ -6,6 +6,9 @@ __pycache__/
 # C extensions
 *.so
 
+# certs
+certs/
+
 # Distribution / packaging
 .Python
 build/
@@ -238,3 +241,10 @@ __marimo__/
 *.fdb_latexmk
 *.synctex.gz
 *.nav
+
+# pnpm build
+node_modules
+dist
+build
+.vite
+coverage
