@@ -1,11 +1,11 @@
 import './App.css'
-import { Login } from './login'
+import { LoginWrapper } from './login'
 
 function App() {
 
   return (
     <>
-      <Login />
+      <LoginWrapper />
     </>
   )
 }

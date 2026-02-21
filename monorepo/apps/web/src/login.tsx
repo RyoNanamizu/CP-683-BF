@@ -1,10 +1,11 @@
 import { base64urlToArrayBuffer, fetchChallenge, PRF_NOT_ENABLED_ERROR, SESSION_TOKEN_KEY, USER_EXISTS_ERROR } from "@repo/shared";
 import "antd/dist/reset.css";
-import { Button, Input, message, Space } from 'antd';
+import { Button, Flex, Input, message, Space } from 'antd';
 import { useCallback, useEffect, useState } from "react";
 import type { MessageInstance } from "antd/es/message/interface";
 import type { CreateCredentialOptions, LoginChallenge } from "@repo/shared"
 import { GenerateKey } from "./generateKey";
+import { SignPanel } from "./Sign";
 
 
 
@@ -155,23 +156,31 @@ function Login() {
     }, [fetchProfileWithSetter]);
 
     return currentUser === null ? (
-        <div style={{ padding: 24 }}>
+        <Flex vertical gap="large">
             {contextHolder}
             <h1>Login</h1>
             <Space.Compact style={{ width: '100%' }}>
                 <Input placeholder="User Name" value={username} onChange={e => setUsername(e.target.value)} />
                 <Button type="primary" onClick={() => getChallengeWithMessage(username)}>Login</Button>
             </Space.Compact>
-        </div>
+        </Flex>
     ) : (
-        <div style={{ padding: 24 }}>
+        <Flex vertical gap="large">
             {contextHolder}
             <h1>Welcome, {currentUser}</h1>
-            <Button type="primary" onClick={() => { clearSession(); setCurrentUser(null); }}>Logout</Button>
-            <GenerateKey username={currentUser} />
-
-        </div>
+            <Flex gap="middle" justify="center">
+                <Button type="primary" onClick={() => { clearSession(); setCurrentUser(null); }}>Logout</Button>
+                <GenerateKey username={currentUser} />
+            </Flex>
+            <SignPanel username={currentUser} />
+        </Flex>
     );
 }
 
-export { Login };
+export function LoginWrapper() {
+    return <Flex gap="middle" vertical wrap style={{ width: "100%" }}>
+        <Login />
+    </Flex>
+}
+
+
