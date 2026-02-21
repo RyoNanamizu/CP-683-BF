@@ -45,6 +45,7 @@ export interface LRSSignatureLight {
 }
 
 
+
 /**
  * Generates a Linkable Ring Signature (LRS) for a message using a ring of public keys.
  * 
@@ -79,7 +80,7 @@ export function generateLRS(
 
     const n = pubKeys.length;
     const ring = pubKeys.map(pk => RistrettoPoint.fromHex(pk));
-    const x = bytesToNumberLE(hexToBytes(privKey));
+    const x = hashToScalar(hexToBytes(privKey));
     const P_i = ring[signerIndex];
 
     const Hp = H_p(P_i.toBytes());
@@ -89,7 +90,7 @@ export function generateLRS(
     const c: bigint[] = new Array(n);
 
     const u = ed25519.utils.randomSecretKey();
-    const uScalar = bytesToNumberLE(u);
+    const uScalar = hashToScalar(u);
     const L_i = G.multiply(uScalar);
     const R_i = Hp.multiply(uScalar);
     const i1 = (signerIndex + 1) % n;
@@ -97,7 +98,7 @@ export function generateLRS(
     c[i1] = hashToScalar(toBytes(message), L_i.toBytes(), R_i.toBytes());
     for (let j = 1; j < n; j++) {
         const idx = (signerIndex + j) % n;
-        r[idx] = bytesToNumberLE(ed25519.utils.randomSecretKey()) % mod;
+        r[idx] = hashToScalar(ed25519.utils.randomSecretKey());
         const L = G.multiply(r[idx]).add(ring[idx].multiply(c[idx]));
         const R = H_p(ring[idx].toBytes()).multiply(r[idx]).add(I.multiply(c[idx]));
 
@@ -111,8 +112,15 @@ export function generateLRS(
         c0: c[0].toString(16),
         r: r.map(val => val.toString(16)),
         I: I.toHex(),
-        ring: pubKeys  // 如果 pk 是 Uint8Array 或 ArrayBuffer
+        ring: pubKeys
     };
+}
+
+export function generateLRSWithoutFakeKeys(message: string, pubKey: string, privKey: string, ringSize: number = 8): LRSSignature {
+    const pubKeys = Array.from({ length: ringSize - 1 }, () => generateKeyPair().publicKey);
+    const index = Math.floor(Math.random() * ringSize);
+    pubKeys.splice(index, 0, pubKey);
+    return generateLRS(message, pubKeys, index, privKey);
 }
 
 // === Verification ===
@@ -160,7 +168,7 @@ export function verifyLRS(
  */
 export const generateKeyPair = (seed?: Uint8Array) => {
     const secretKey = ed25519.utils.randomSecretKey(seed);
-    const x = RistrettoPoint.Fn.fromBytes(secretKey)
+    const x = hashToScalar(secretKey)
     const publicKey = G.multiply(x).toHex();
     return {
         privateKey: bytesToHex(secretKey), // Return hex string directly
@@ -169,7 +177,7 @@ export const generateKeyPair = (seed?: Uint8Array) => {
 };
 
 export const validatePublicKey = (publicKey: string, privateKey: string): boolean => {
-    const x = bytesToNumberLE(hexToBytes(privateKey));
+    const x = hashToScalar(hexToBytes(privateKey));
     const publicKeyPoint = G.multiply(x);
     const validPublicKey = publicKeyPoint.toHex();
     // Logic to validate the public key using the private key
