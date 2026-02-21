@@ -1,5 +1,5 @@
 import { ristretto255, ed25519, ristretto255_hasher } from '@noble/curves/ed25519.js';
-import { bytesToHex, hexToBytes, bytesToNumberLE, concatBytes } from '@noble/curves/utils.js';
+import { bytesToHex, hexToBytes, concatBytes } from '@noble/curves/utils.js';
 import { CURVE_DST } from './constants';
 const RistrettoPoint = ristretto255.Point;
 const ED25519Point = ed25519.Point;
@@ -18,9 +18,11 @@ const G = RistrettoPoint.BASE;
 const mod = ED25519Point.CURVE().n
 
 
-function toBytes(str: string): Uint8Array {
+export function toBytes(str: string): Uint8Array<ArrayBuffer> {
     return new TextEncoder().encode(str);
 }
+
+export { hexToBytes };
 
 function hashToScalar(...data: Uint8Array[]): bigint {
     const msg = concatBytes(...data);
@@ -45,6 +47,52 @@ export interface LRSSignatureLight {
 }
 
 
+
+
+export function generateLRSFromRawMessage(
+    message: Uint8Array<ArrayBuffer>,
+    pubKeys: string[],
+    signerIndex: number,
+    privKey: string
+): LRSSignature {
+
+    const n = pubKeys.length;
+    const ring = pubKeys.map(pk => RistrettoPoint.fromHex(pk));
+    const x = hashToScalar(hexToBytes(privKey));
+    const P_i = ring[signerIndex];
+
+    const Hp = H_p(P_i.toBytes());
+    const I = Hp.multiply(x);
+
+    const r: bigint[] = new Array(n);
+    const c: bigint[] = new Array(n);
+
+    const u = ed25519.utils.randomSecretKey();
+    const uScalar = hashToScalar(u);
+    const L_i = G.multiply(uScalar);
+    const R_i = Hp.multiply(uScalar);
+    const i1 = (signerIndex + 1) % n;
+
+    c[i1] = hashToScalar(message, L_i.toBytes(), R_i.toBytes());
+    for (let j = 1; j < n; j++) {
+        const idx = (signerIndex + j) % n;
+        r[idx] = hashToScalar(ed25519.utils.randomSecretKey());
+        const L = G.multiply(r[idx]).add(ring[idx].multiply(c[idx]));
+        const R = H_p(ring[idx].toBytes()).multiply(r[idx]).add(I.multiply(c[idx]));
+
+        const nextIdx = (idx + 1) % n;
+        c[nextIdx] = hashToScalar(message, L.toBytes(), R.toBytes());
+    }
+    const summary = (uScalar - c[signerIndex] * x) % mod;
+    r[signerIndex] = (summary + mod) % mod;
+
+    return {
+        c0: c[0].toString(16).padStart(64, '0'),
+        r: r.map(val => val.toString(16).padStart(64, '0')),
+        I: I.toHex(),
+        ring: pubKeys
+    };
+}
 
 /**
  * Generates a Linkable Ring Signature (LRS) for a message using a ring of public keys.
@@ -71,62 +119,21 @@ export interface LRSSignatureLight {
  * );
  * ```
  */
-export function generateLRS(
-    message: string,
-    pubKeys: string[],
-    signerIndex: number,
-    privKey: string
-): LRSSignature {
+export const generateLRS = (message: string, pubKeys: string[], signerIndex: number, privKey: string) => generateLRSFromRawMessage(toBytes(message), pubKeys, signerIndex, privKey);
 
-    const n = pubKeys.length;
-    const ring = pubKeys.map(pk => RistrettoPoint.fromHex(pk));
-    const x = hashToScalar(hexToBytes(privKey));
-    const P_i = ring[signerIndex];
+export const generateLRSWithoutFakeKeys = (message: string, pubKey: string, privKey: string, ringSize: number = 8) => generateLRSFromRawMessageWithoutFakeKeys(toBytes(message), pubKey, privKey, ringSize);
 
-    const Hp = H_p(P_i.toBytes());
-    const I = Hp.multiply(x);
-
-    const r: bigint[] = new Array(n);
-    const c: bigint[] = new Array(n);
-
-    const u = ed25519.utils.randomSecretKey();
-    const uScalar = hashToScalar(u);
-    const L_i = G.multiply(uScalar);
-    const R_i = Hp.multiply(uScalar);
-    const i1 = (signerIndex + 1) % n;
-
-    c[i1] = hashToScalar(toBytes(message), L_i.toBytes(), R_i.toBytes());
-    for (let j = 1; j < n; j++) {
-        const idx = (signerIndex + j) % n;
-        r[idx] = hashToScalar(ed25519.utils.randomSecretKey());
-        const L = G.multiply(r[idx]).add(ring[idx].multiply(c[idx]));
-        const R = H_p(ring[idx].toBytes()).multiply(r[idx]).add(I.multiply(c[idx]));
-
-        const nextIdx = (idx + 1) % n;
-        c[nextIdx] = hashToScalar(toBytes(message), L.toBytes(), R.toBytes());
-    }
-    const summary = (uScalar - c[signerIndex] * x) % mod;
-    r[signerIndex] = (summary + mod) % mod;
-
-    return {
-        c0: c[0].toString(16),
-        r: r.map(val => val.toString(16)),
-        I: I.toHex(),
-        ring: pubKeys
-    };
-}
-
-export function generateLRSWithoutFakeKeys(message: string, pubKey: string, privKey: string, ringSize: number = 8): LRSSignature {
+export function generateLRSFromRawMessageWithoutFakeKeys(message: Uint8Array<ArrayBuffer>, pubKey: string, privKey: string, ringSize: number = 8): LRSSignature {
     const pubKeys = Array.from({ length: ringSize - 1 }, () => generateKeyPair().publicKey);
     const index = Math.floor(Math.random() * ringSize);
     pubKeys.splice(index, 0, pubKey);
-    return generateLRS(message, pubKeys, index, privKey);
+    return generateLRSFromRawMessage(message, pubKeys, index, privKey);
 }
 
 // === Verification ===
 
-export function verifyLRS(
-    message: string,
+export function verifyLRSFromRawMessage(
+    message: Uint8Array<ArrayBuffer>,
     sig: LRSSignature
 ): boolean {
     const n = sig.ring.length;
@@ -141,11 +148,13 @@ export function verifyLRS(
         const R = H_p(ring[j].toBytes()).multiply(r[j]).add(I.multiply(c[j]));
 
         const next = (j + 1) % n;
-        c[next] = hashToScalar(toBytes(message), L.toBytes(), R.toBytes());
+        c[next] = hashToScalar(message, L.toBytes(), R.toBytes());
     }
 
     return c[0] === BigInt('0x' + sig.c0);
 }
+
+export const verifyLRS = (message: string, sig: LRSSignature) => verifyLRSFromRawMessage(toBytes(message), sig);
 
 /**
  * Generates an Ed25519 key pair using ristretto255 elliptic curve cryptography.
