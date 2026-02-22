@@ -4,7 +4,6 @@ import { Button, Flex, Input, message, Space } from 'antd';
 import { useCallback, useEffect, useState } from "react";
 import type { MessageInstance } from "antd/es/message/interface";
 import type { CreateCredentialOptions, LoginChallenge } from "@repo/shared"
-import { GenerateKey } from "./generateKey";
 import { SignPanel } from "./Sign";
 
 
@@ -170,7 +169,6 @@ function Login() {
             <h1>Welcome, {currentUser}</h1>
             <Flex gap="middle" justify="center">
                 <Button type="primary" onClick={() => { clearSession(); setCurrentUser(null); }}>Logout</Button>
-                <GenerateKey username={currentUser} />
             </Flex>
             <SignPanel username={currentUser} />
         </Flex>
