@@ -1,18 +1,11 @@
 import { Alert, Button, Collapse, Flex, Input, type CollapseProps } from "antd"
 import { MessagePackList } from "./Message";
-import { getCredentialIds, getMessagePack } from "./utils";
+import { getCredentialIdForUser, getMessagePack } from "./utils";
 import { useCallback, useState } from "react";
 import type { MessagePack } from "@repo/shared";
 import { getMessagePackStorageKey, STORAGE_KEY_CREDENTIAL_ID, STORAGE_KEY_MESSAGE_PACKS_LIST } from "./constants";
 
-const getCredentialIdForUser = async (username: string) => {
-    const credentialIds = await getCredentialIds(username);
-    if (credentialIds.length === 0) {
-        throw new Error("No credentials available for signing");
-    }
-    const credentialId = credentialIds[0]; // For simplicity, we just use the first credential. In a real app, you would let the user choose.
-    return credentialId;
-}
+
 
 const signMessageToMessagePack = async (message: string, username: string, memo: string): Promise<MessagePack> => {
     const credentialId = localStorage.getItem(STORAGE_KEY_CREDENTIAL_ID) ?? (await getCredentialIdForUser(username));
@@ -57,12 +50,12 @@ const getItems = (props: Props): CollapseProps['items'] => {
         {
             key: 1,
             label: "Sign a new Message",
-            children: <SignMessage {...props} />,
+            children: <SignMessage username={props.username} />,
         },
         {
             key: 2,
             label: "Show Message Pack List",
-            children: <MessagePackList />,
+            children: <MessagePackList username={props.username} />,
         }
     ]
 }

@@ -1,8 +1,9 @@
 // import type { MessagePack } from "@repo/shared";
-import { Splitter, Flex, List, Descriptions, type DescriptionsProps } from "antd";
+import { Splitter, Flex, List, Descriptions, type DescriptionsProps, Button, Badge } from "antd";
 import { getMessagePackStorageKey, STORAGE_KEY_MESSAGE_PACKS_LIST } from "./constants";
 import { useState } from "react";
-import type { MessagePack } from "../../../packages/shared/dist/types";
+import { getCredentialIdForUser, getProofForReceiver, ValidateMessagePack } from "./utils";
+import type { MessagePack } from "@repo/shared";
 
 const Desc: React.FC<Readonly<{ text?: string | number }>> = (props) => (
     <Flex justify="center" align="center" style={{ height: '100%' }}>
@@ -36,16 +37,39 @@ const convertMessagePackToDisplayData = (messagePack: MessagePack, memo: string)
     }]
 }
 
-const MessagePackDetail = (props: { index: number, memo: string }) => {
+const getValidationResult = (messagePack: MessagePack) => {
+    try {
+        return ValidateMessagePack(messagePack);
+    } catch (error) {
+        console.error("Validation error:", error);
+        return false;
+    }
+}
+
+const getProofValidationResult = async (messagePack: MessagePack, username: string) => {
+    const credentialId = await getCredentialIdForUser(username);
+    const result = getProofForReceiver(messagePack, credentialId);
+    console.log("Proof validation result:", result);
+    return result;
+}
+
+const MessagePackDetail = (props: { index: number, memo: string, username: string }) => {
     const data = localStorage.getItem(getMessagePackStorageKey(props.index))
     if (data === null) return <Desc text="No data found for this message pack" />
     const messagePackData = JSON.parse(data) as MessagePack;
+    const validationResult = getValidationResult(messagePackData);
     return <Flex vertical gap="large" style={{ margin: "16px" }}>
-        <Descriptions layout="horizontal" column={1} bordered title="Message Info" items={convertMessagePackToDisplayData(messagePackData, props.memo)} />
+        <Badge.Ribbon color={validationResult ? "green" : "red"} text={validationResult ? "Passed" : "Failed"}>
+            <Descriptions layout="horizontal" column={1} bordered title="Message Info" items={convertMessagePackToDisplayData(messagePackData, props.memo)} />
+        </Badge.Ribbon>
+        <Flex gap="middle">
+            <Button color="primary" variant="solid" onClick={() => getProofValidationResult(messagePackData, props.username)}>Idenfity Confirmation Request</Button>
+            <Button color="primary" variant="solid">Export</Button>
+        </Flex>
     </Flex>
 }
 
-export const MessagePackList = () => {
+export const MessagePackList = (props: { username: string }) => {
     const [currentIndex, setCurrentIndex] = useState<number | null>(null);
     const messagePackList = getMessagePackList();
 
@@ -55,7 +79,7 @@ export const MessagePackList = () => {
                 <List dataSource={messagePackList} renderItem={(item, index) => <List.Item onClick={() => setCurrentIndex(index)}>{item}</List.Item>} />
             </Splitter.Panel>
             <Splitter.Panel min="20%">
-                {currentIndex !== null && <MessagePackDetail index={currentIndex} memo={messagePackList[currentIndex]} />}
+                {currentIndex !== null && <MessagePackDetail index={currentIndex} memo={messagePackList[currentIndex]} username={props.username} />}
             </Splitter.Panel>
         </Splitter >
     </Flex>

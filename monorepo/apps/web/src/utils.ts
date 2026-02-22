@@ -1,4 +1,4 @@
-import { base64urlToArrayBuffer, generateKeyPair, fromBufferSource, generateLRSWithoutFakeKeys, type LRSSignature, toBytes, hexToBytes, generateLRSFromRawMessageWithoutFakeKeys, type MessagePack, uint8ArrayToBase64, fetchChallenge, type ErrorResponse, type LoginChallenge } from "@repo/shared";
+import { base64urlToArrayBuffer, generateKeyPair, fromBufferSource, generateLRSWithoutFakeKeys, toBytes, hexToBytes, generateLRSFromRawMessageWithoutFakeKeys, type MessagePack, uint8ArrayToBase64, fetchChallenge, type ErrorResponse, type LoginChallenge, verifyLRSFromRawMessage, bytesToLRS, LRSToBytes, bytesToRawLRS } from "@repo/shared";
 const SHA256HASH_SIZE = 32;
 
 export const getCredentialIds = async (username: string): Promise<string[]> => {
@@ -46,59 +46,6 @@ const generateKeyWithPRF = async (credentialId: string) => {
     return { privateKey, publicKey };
 };
 
-
-const LRSToBytes = (LRS: LRSSignature) => {
-    const c0Bytes = hexToBytes(LRS.c0);
-    const rBytes = LRS.r.map(hexToBytes)
-    const IBytes = hexToBytes(LRS.I);
-    const ringBytes = LRS.ring.map(hexToBytes);
-    if (c0Bytes.length !== 32) throw new Error("Invalid c0 length");
-    if (IBytes.length !== 32) throw new Error("Invalid I length");
-    if (rBytes.some(arr => arr.length !== 32)) throw new Error("Invalid r length");
-    if (ringBytes.some(arr => arr.length !== 32)) throw new Error("Invalid ring element length");
-    const totalLength = 32 * (2 + rBytes.length + ringBytes.length) + 4;
-    const result = new Uint8Array(totalLength);
-    let offset = 0;
-    const ringSize = ringBytes.length;
-    const buffer = new Uint8Array(4);
-    const view = new DataView(buffer.buffer);
-    view.setUint32(0, ringSize, false);
-    result.set(buffer, offset);
-    offset += 4;
-    result.set(c0Bytes, offset);
-    offset += c0Bytes.length;
-    result.set(IBytes, offset);
-    offset += IBytes.length;
-    rBytes.forEach(arr => {
-        result.set(arr, offset);
-        offset += arr.length;
-    });
-    ringBytes.forEach(arr => {
-        result.set(arr, offset);
-        offset += arr.length;
-    });
-    return result;
-}
-
-/* const bytesToLRS = (bytes: Uint8Array<ArrayBuffer>): LRSSignature => {
-    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-    const ringSize = view.getUint32(0, false);
-    let offset = 4;
-    const c0Bytes = new Uint8Array(bytes.buffer, bytes.byteOffset + offset, 32);
-    offset += 32;
-    const IBytes = new Uint8Array(bytes.buffer, bytes.byteOffset + offset, 32);
-    offset += 32;
-    const rBytes = new Uint8Array(bytes.buffer, bytes.byteOffset + offset, 32 * ringSize);
-    offset += 32 * ringSize;
-    const ringBytes = new Uint8Array(bytes.buffer, bytes.byteOffset + offset, 32 * ringSize);
-    return {
-        c0: bytesToHex(c0Bytes),
-        I: bytesToHex(IBytes),
-        r: Array.from({ length: ringSize }, (_, i) => bytesToHex(rBytes.slice(i * 32, (i + 1) * 32))),
-        ring: Array.from({ length: ringSize }, (_, i) => bytesToHex(ringBytes.slice(i * 32, (i + 1) * 32))),
-    }
-}
- */
 const generateInternalLRS = async (message: string, pubKey: string, privKey: string) => {
     const internalLRS = generateLRSWithoutFakeKeys(message, pubKey, privKey);
     return LRSToBytes(internalLRS);
@@ -173,4 +120,81 @@ export const getMessagePack = async (payload: string, timestamp: string, nonce: 
     }
     console.log("Generated MessagePack:", result);
     return result
+}
+
+export const ValidateMessagePack = async (messagePack: MessagePack): Promise<boolean> => {
+    // Step 1, confirming metadata
+    if (messagePack.meta.version !== "1.0" ||
+        messagePack.meta.hash_algorithm !== "SHA-256" ||
+        messagePack.meta.curve !== "ristretto255") {
+        console.error("Metadata validation failed");
+        return false;
+    }
+    // Step 2, combian message
+    const message = messagePack.message.payload + messagePack.message.timestamp + messagePack.message.nonce;
+    const rawMessage = toBytes(message);
+    const internalLRSHash = new Uint8Array(base64urlToArrayBuffer(messagePack.proof.inner_hash));
+    if (!internalLRSHash || internalLRSHash.byteLength !== SHA256HASH_SIZE) {
+        console.error("Invalid internal LRS hash");
+        return false;
+    }
+    const toAll = new Uint8Array(rawMessage.length + SHA256HASH_SIZE);
+    toAll.set(internalLRSHash, 0);
+    toAll.set(rawMessage, SHA256HASH_SIZE);
+    // Step 3, deserialize external LRS
+    const externalLRSBytes = new Uint8Array(base64urlToArrayBuffer(messagePack.signature));
+    const externalLRS = bytesToLRS(externalLRSBytes);
+    return verifyLRSFromRawMessage(toAll, externalLRS);
+}
+
+export const getProofForReceiver = async (messagePack: MessagePack, credentialId: string) => {
+    const externalLRSBytes = new Uint8Array(base64urlToArrayBuffer(messagePack.signature));
+    const externalLRS = bytesToRawLRS(externalLRSBytes);
+    const credentials: PublicKeyCredential[] = []
+    for (const key of externalLRS.ring) {
+        const salt = await crypto.subtle.digest('SHA-256', key);
+        const credential = await getCredential(credentialId, salt);
+        credentials.push(credential);
+    }
+    const gcmKeys = await Promise.all(credentials.map(async (credential) => {
+        const extensionResults = credential.getClientExtensionResults();
+        const derivedKey = extensionResults?.prf?.results?.first;
+        if (!derivedKey) throw new Error("PRF extension did not return a derived key");
+        const gcmKey = await crypto.subtle.importKey(
+            "raw",
+            derivedKey,
+            { name: "AES-GCM" },
+            false,
+            ["decrypt"]
+        );
+        return gcmKey
+    }));
+    console.log("Derived GCM keys for proof validation:", gcmKeys);
+    const results = await Promise.all(gcmKeys.map(async (key) => {
+        try {
+            return await crypto.subtle.decrypt(
+                {
+                    name: "AES-GCM",
+                    iv: base64urlToArrayBuffer(messagePack.proof.gcm.iv),
+                },
+                key,
+                base64urlToArrayBuffer(messagePack.proof.gcm.ciphertext)
+            );
+        } catch (error) {
+            return null;
+        }
+    }))
+    console.log("Decryption results for proof validation:", results);
+    const result: ArrayBuffer | null = results.find(res => res !== null) ?? null;
+    console.log("Proof decryption result:", result);
+    return result;
+}
+
+export const getCredentialIdForUser = async (username: string) => {
+    const credentialIds = await getCredentialIds(username);
+    if (credentialIds.length === 0) {
+        throw new Error("No credentials available for signing");
+    }
+    const credentialId = credentialIds[0]; // For simplicity, we just use the first credential. In a real app, you would let the user choose.
+    return credentialId;
 }

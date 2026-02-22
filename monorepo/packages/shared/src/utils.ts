@@ -36,14 +36,18 @@ function H_p(pub: Uint8Array) {
 }
 // === Signature ===
 
-export interface LRSSignature extends LRSSignatureLight {
+export interface LRSSignature {
     I: string;
     ring: string[];
-}
-
-export interface LRSSignatureLight {
     c0: string;
     r: string[];
+}
+
+export interface LRSSignatureRaw {
+    I: Uint8Array<ArrayBuffer>;
+    ring: Uint8Array<ArrayBuffer>[];
+    c0: Uint8Array<ArrayBuffer>;
+    r: Uint8Array<ArrayBuffer>[];
 }
 
 
@@ -156,6 +160,7 @@ export function verifyLRSFromRawMessage(
 
 export const verifyLRS = (message: string, sig: LRSSignature) => verifyLRSFromRawMessage(toBytes(message), sig);
 
+
 /**
  * Generates an Ed25519 key pair using ristretto255 elliptic curve cryptography.
  * 
@@ -192,3 +197,74 @@ export const validatePublicKey = (publicKey: string, privateKey: string): boolea
     // Logic to validate the public key using the private key
     return validPublicKey === publicKey;
 };
+
+export const LRSToBytes = (LRS: LRSSignature) => {
+    const c0Bytes = hexToBytes(LRS.c0);
+    const rBytes = LRS.r.map(hexToBytes)
+    const IBytes = hexToBytes(LRS.I);
+    const ringBytes = LRS.ring.map(hexToBytes);
+    if (c0Bytes.length !== 32) throw new Error("Invalid c0 length");
+    if (IBytes.length !== 32) throw new Error("Invalid I length");
+    if (rBytes.some(arr => arr.length !== 32)) throw new Error("Invalid r length");
+    if (ringBytes.some(arr => arr.length !== 32)) throw new Error("Invalid ring element length");
+    const totalLength = 32 * (2 + rBytes.length + ringBytes.length) + 4;
+    const result = new Uint8Array(totalLength);
+    let offset = 0;
+    const ringSize = ringBytes.length;
+    const buffer = new Uint8Array(4);
+    const view = new DataView(buffer.buffer);
+    view.setUint32(0, ringSize, false);
+    result.set(buffer, offset);
+    offset += 4;
+    result.set(c0Bytes, offset);
+    offset += c0Bytes.length;
+    result.set(IBytes, offset);
+    offset += IBytes.length;
+    rBytes.forEach(arr => {
+        result.set(arr, offset);
+        offset += arr.length;
+    });
+    ringBytes.forEach(arr => {
+        result.set(arr, offset);
+        offset += arr.length;
+    });
+    return result;
+}
+
+export const bytesToLRS = (bytes: Uint8Array<ArrayBuffer>): LRSSignature => {
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    const ringSize = view.getUint32(0, false);
+    let offset = 4;
+    const c0Bytes = new Uint8Array(bytes.buffer, bytes.byteOffset + offset, 32);
+    offset += 32;
+    const IBytes = new Uint8Array(bytes.buffer, bytes.byteOffset + offset, 32);
+    offset += 32;
+    const rBytes = new Uint8Array(bytes.buffer, bytes.byteOffset + offset, 32 * ringSize);
+    offset += 32 * ringSize;
+    const ringBytes = new Uint8Array(bytes.buffer, bytes.byteOffset + offset, 32 * ringSize);
+    return {
+        c0: bytesToHex(c0Bytes),
+        I: bytesToHex(IBytes),
+        r: Array.from({ length: ringSize }, (_, i) => bytesToHex(rBytes.slice(i * 32, (i + 1) * 32))),
+        ring: Array.from({ length: ringSize }, (_, i) => bytesToHex(ringBytes.slice(i * 32, (i + 1) * 32))),
+    }
+}
+
+export const bytesToRawLRS = (bytes: Uint8Array<ArrayBuffer>): LRSSignatureRaw => {
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    const ringSize = view.getUint32(0, false);
+    let offset = 4;
+    const c0Bytes = new Uint8Array(bytes.buffer, bytes.byteOffset + offset, 32);
+    offset += 32;
+    const IBytes = new Uint8Array(bytes.buffer, bytes.byteOffset + offset, 32);
+    offset += 32;
+    const rBytes = new Uint8Array(bytes.buffer, bytes.byteOffset + offset, 32 * ringSize);
+    offset += 32 * ringSize;
+    const ringBytes = new Uint8Array(bytes.buffer, bytes.byteOffset + offset, 32 * ringSize);
+    return {
+        c0: c0Bytes,
+        I: IBytes,
+        r: Array.from({ length: ringSize }, (_, i) => rBytes.slice(i * 32, (i + 1) * 32)),
+        ring: Array.from({ length: ringSize }, (_, i) => ringBytes.slice(i * 32, (i + 1) * 32)),
+    }
+}
