@@ -5,7 +5,19 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   resolve: {
   },
-  plugins: [react()],
+  plugins: [react(), {
+    name: 'ignore-install-hook-map',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (req.url && req.url.includes('installHook.js.map')) {
+          res.statusCode = 404;
+          res.end(); // 这样浏览器拿到的是 404，而不是 HTML，就不会报解析错误了
+          return;
+        }
+        next();
+      });
+    },
+  },],
   server: {
     https: {
       key: "../../certs/dev.key",

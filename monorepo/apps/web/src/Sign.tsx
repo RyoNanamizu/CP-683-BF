@@ -3,25 +3,37 @@ import { MessagePackList } from "./Message";
 import { getCredentialIds, getMessagePack } from "./utils";
 import { useCallback, useState } from "react";
 import type { MessagePack } from "@repo/shared";
+import { getMessagePackStorageKey, STORAGE_KEY_CREDENTIAL_ID, STORAGE_KEY_MESSAGE_PACKS_LIST } from "./constants";
 
-const signMessageToMessagePack = async (message: string, username: string): Promise<MessagePack> => {
+const getCredentialIdForUser = async (username: string) => {
     const credentialIds = await getCredentialIds(username);
     if (credentialIds.length === 0) {
         throw new Error("No credentials available for signing");
     }
     const credentialId = credentialIds[0]; // For simplicity, we just use the first credential. In a real app, you would let the user choose.
+    return credentialId;
+}
+
+const signMessageToMessagePack = async (message: string, username: string, memo: string): Promise<MessagePack> => {
+    const credentialId = localStorage.getItem(STORAGE_KEY_CREDENTIAL_ID) ?? (await getCredentialIdForUser(username));
+    localStorage.setItem(STORAGE_KEY_CREDENTIAL_ID, credentialId);
     const timestamp = new Date().toISOString();
     const nonce = crypto.randomUUID();
     const messagePack = await getMessagePack(message, timestamp, nonce, credentialId);
-    console.log(messagePack);
+    const currentPacks = JSON.parse(localStorage.getItem(STORAGE_KEY_MESSAGE_PACKS_LIST) ?? "[]") as string[];
+    currentPacks.push(memo.length > 0 ? memo : 'UNKNOWN');
+    const index = currentPacks.length - 1;
+    localStorage.setItem(STORAGE_KEY_MESSAGE_PACKS_LIST, JSON.stringify(currentPacks));
+    localStorage.setItem(getMessagePackStorageKey(index), JSON.stringify(messagePack));
     return messagePack;
 }
 
 
 const SignMessage = (props: Props) => {
-
     const [message, setMessage] = useState<string>("");
     const [memo, setMemo] = useState<string>("");
+
+    const signMessage = useCallback(() => signMessageToMessagePack(message, props.username, memo), [message, memo, props.username]);
 
     return <Flex vertical gap="middle">
         <Flex>
@@ -32,7 +44,7 @@ const SignMessage = (props: Props) => {
             <Input placeholder="Enter a memo (Optional)" value={memo} onChange={(e) => setMemo(e.target.value)} />
         </Flex>
         <Flex gap="middle">
-            <Button color="primary" variant="solid" onClick={() => { signMessageToMessagePack(message, props.username) }}>Generate A New Message Pack</Button>
+            <Button color="primary" variant="solid" onClick={signMessage}>Generate A New Message Pack</Button>
             <Button color="danger" variant="solid">Clear</Button>
         </Flex>
     </Flex >
