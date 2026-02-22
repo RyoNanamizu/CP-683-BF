@@ -22,7 +22,7 @@ export function toBytes(str: string): Uint8Array<ArrayBuffer> {
     return new TextEncoder().encode(str);
 }
 
-export { hexToBytes };
+export { hexToBytes, bytesToHex };
 
 function hashToScalar(...data: Uint8Array[]): bigint {
     const msg = concatBytes(...data);
@@ -89,8 +89,8 @@ export function generateLRSFromRawMessage(
     return {
         c0: c[0].toString(16).padStart(64, '0'),
         r: r.map(val => val.toString(16).padStart(64, '0')),
-        I: I.toHex(),
-        ring: pubKeys
+        I: I.toHex().padStart(64, '0'),
+        ring: pubKeys.map(pk => pk.padStart(64, '0'))
     };
 }
 
