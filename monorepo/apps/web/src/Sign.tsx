@@ -1,5 +1,5 @@
 import { Alert, Button, Collapse, Flex, Input, type CollapseProps } from "antd"
-import { MessagePackList } from "./Message";
+import { MessagePackList, ReceivedValidationRequestList, SentValidationRequestList } from "./Message";
 import { getCredentialIdForUser, getMessagePack } from "./utils";
 import { useCallback, useState } from "react";
 import type { MessagePack } from "@repo/shared";
@@ -45,6 +45,7 @@ const SignMessage = (props: Props) => {
 
 
 
+
 const getItems = (props: Props): CollapseProps['items'] => {
     return [
         {
@@ -54,14 +55,23 @@ const getItems = (props: Props): CollapseProps['items'] => {
         },
         {
             key: 2,
-            label: "Show Message Pack List",
+            label: "Message Pack List",
             children: <MessagePackList username={props.username} />,
+        },
+        {
+            key: 3,
+            label: "Received Validation Request List",
+            children: <ReceivedValidationRequestList />,
+        },
+        {
+            key: 4,
+            label: "Sent Validation Request List",
+            children: <SentValidationRequestList />,
         }
     ]
 }
 
 type Props = {
-    // You can add props here if needed
     username: string
 }
 
