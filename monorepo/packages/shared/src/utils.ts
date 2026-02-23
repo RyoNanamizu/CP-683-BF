@@ -161,6 +161,15 @@ export function verifyLRSFromRawMessage(
 export const verifyLRS = (message: string, sig: LRSSignature) => verifyLRSFromRawMessage(toBytes(message), sig);
 
 
+export const LRSFromRawLRS = (raw: LRSSignatureRaw): LRSSignature => {
+    return {
+        c0: bytesToHex(raw.c0).padStart(64, '0'),
+        I: bytesToHex(raw.I).padStart(64, '0'),
+        r: raw.r.map(i => bytesToHex(i).padStart(64, '0')),
+        ring: raw.ring.map(i => bytesToHex(i).padStart(64, '0'))
+    }
+}
+
 /**
  * Generates an Ed25519 key pair using ristretto255 elliptic curve cryptography.
  * 
@@ -267,4 +276,9 @@ export const bytesToRawLRS = (bytes: Uint8Array<ArrayBuffer>): LRSSignatureRaw =
         r: Array.from({ length: ringSize }, (_, i) => rBytes.slice(i * 32, (i + 1) * 32)),
         ring: Array.from({ length: ringSize }, (_, i) => ringBytes.slice(i * 32, (i + 1) * 32)),
     }
+}
+
+export const uint8ArrayEquals = (a: Uint8Array, b: Uint8Array): boolean => {
+    if (a.length !== b.length) return false;
+    return a.every((val, index) => val === b[index]);
 }

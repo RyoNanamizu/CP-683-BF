@@ -61,7 +61,7 @@ const getItems = (props: Props): CollapseProps['items'] => {
         {
             key: 3,
             label: "Received Validation Request List",
-            children: <ReceivedValidationRequestList />,
+            children: <ReceivedValidationRequestList username={props.username} />,
         },
         {
             key: 4,

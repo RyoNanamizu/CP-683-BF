@@ -2,6 +2,7 @@ import { base64urlToArrayBuffer, generateKeyPair, fromBufferSource, generateLRSW
 const SHA256HASH_SIZE = 32;
 
 export const getCredentialIds = async (username: string): Promise<string[]> => {
+    console.log("Fetching credential IDs for username:", username);
     const loginData = await fetchChallenge(username, "/api/auth/challenge") as LoginChallenge | ErrorResponse
     if ("error" in loginData) throw new Error(`Failed to fetch login challenge: ${loginData.error}`);
     return loginData.allowCredentials.map(cred => cred.id);
