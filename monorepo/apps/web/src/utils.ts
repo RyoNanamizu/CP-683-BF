@@ -2,7 +2,6 @@ import { base64urlToArrayBuffer, generateKeyPair, fromBufferSource, generateLRSW
 const SHA256HASH_SIZE = 32;
 
 export const getCredentialIds = async (username: string): Promise<string[]> => {
-    console.log("Fetching credential IDs for username:", username);
     const loginData = await fetchChallenge(username, "/api/auth/challenge") as LoginChallenge | ErrorResponse
     if ("error" in loginData) throw new Error(`Failed to fetch login challenge: ${loginData.error}`);
     return loginData.allowCredentials.map(cred => cred.id);
@@ -119,7 +118,6 @@ export const getMessagePack = async (payload: string, timestamp: string, nonce: 
             inner_hash: uint8ArrayToBase64(new Uint8Array(internalLRSHash)),
         }
     }
-    console.log("Generated MessagePack:", result);
     return result
 }
 
@@ -128,7 +126,6 @@ export const ValidateMessagePack = async (messagePack: MessagePack): Promise<boo
     if (messagePack.meta.version !== "1.0" ||
         messagePack.meta.hash_algorithm !== "SHA-256" ||
         messagePack.meta.curve !== "ristretto255") {
-        console.error("Metadata validation failed");
         return false;
     }
     // Step 2, combian message
@@ -136,7 +133,6 @@ export const ValidateMessagePack = async (messagePack: MessagePack): Promise<boo
     const rawMessage = toBytes(message);
     const internalLRSHash = new Uint8Array(base64urlToArrayBuffer(messagePack.proof.inner_hash));
     if (!internalLRSHash || internalLRSHash.byteLength !== SHA256HASH_SIZE) {
-        console.error("Invalid internal LRS hash");
         return false;
     }
     const toAll = new Uint8Array(rawMessage.length + SHA256HASH_SIZE);
@@ -170,7 +166,6 @@ export const getProofForReceiver = async (messagePack: MessagePack, credentialId
         );
         return gcmKey
     }));
-    console.log("Derived GCM keys for proof validation:", gcmKeys);
     const results = await Promise.all(gcmKeys.map(async (key) => {
         try {
             return await crypto.subtle.decrypt(
@@ -185,9 +180,7 @@ export const getProofForReceiver = async (messagePack: MessagePack, credentialId
             return null;
         }
     }))
-    console.log("Decryption results for proof validation:", results);
     const result: ArrayBuffer | null = results.find(res => res !== null) ?? null;
-    console.log("Proof decryption result:", result);
     return result;
 }
 

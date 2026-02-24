@@ -53,7 +53,6 @@ const getValidationResult = (messagePack: MessagePack) => {
     try {
         return ValidateMessagePack(messagePack);
     } catch (error) {
-        console.error("Validation error:", error);
         return false;
     }
 }
@@ -61,7 +60,6 @@ const getValidationResult = (messagePack: MessagePack) => {
 const getProofValidationResult = async (messagePack: MessagePack, username: string) => {
     const credentialId = await getCredentialIdForUser(username);
     const result = getProofForReceiver(messagePack, credentialId);
-    console.log("Proof validation result:", result);
     return result;
 }
 
@@ -77,6 +75,26 @@ const sendValidationRequest = (index: number) => {
     localStorage.setItem(STORAGE_KEY_RECEIVED_REQUESTS_LIST, JSON.stringify(receivedRequestList));
 }
 
+const exportMessagePack = async (index: number, memo: string, username: string) => {
+    const data = localStorage.getItem(getMessagePackStorageKey(index))
+    const credentialId = await getCredentialIdForUser(username);
+    if (data === null) return;
+    const messagePackData = JSON.parse(data) as MessagePack;
+    const messagePackExportData = {
+        pack: messagePackData,
+        memo: memo,
+        credentialId: credentialId,
+    }
+    const blob = new Blob([JSON.stringify(messagePackExportData)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `message_pack_${index}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    document.removeChild(a);
+}
+
 const MessagePackDetail = (props: { index: number, memo: string, username: string }) => {
     const data = localStorage.getItem(getMessagePackStorageKey(props.index))
     if (data === null) return <Desc text="No data found for this message pack" />
@@ -88,7 +106,7 @@ const MessagePackDetail = (props: { index: number, memo: string, username: strin
         </Badge.Ribbon>
         <Flex gap="middle">
             <Button color="primary" variant="solid" onClick={() => sendValidationRequest(props.index)}>Idenfity Confirmation Request</Button>
-            <Button color="primary" variant="solid">Export</Button>
+            <Button color="primary" variant="solid" onClick={() => exportMessagePack(props.index, props.memo, props.username)}>Export</Button>
         </Flex>
     </Flex>
 }
@@ -131,7 +149,6 @@ const decryptProof = async (index: number, username: string) => {
     const sentRequestList = getReuqestList();
     const data = localStorage.getItem(getMessagePackStorageKey(index))
     if (data === null) {
-        console.error("No data found for this message pack");
         receivedRequestList[index] = "Error";
         localStorage.setItem(STORAGE_KEY_RECEIVED_REQUESTS_LIST, JSON.stringify(receivedRequestList));
         return;
@@ -139,7 +156,6 @@ const decryptProof = async (index: number, username: string) => {
     const messagePackData = JSON.parse(data) as MessagePack;
     const result = await getProofValidationResult(messagePackData, username);
     if (result === null) {
-        console.error("Proof validation failed");
         receivedRequestList[index] = "Failed";
     } else {
         sentRequestList[index] = "Replied";
@@ -155,13 +171,11 @@ const validateProof = (index: number) => {
     const messagePackItem = localStorage.getItem(getMessagePackStorageKey(index));
     const sentRequestList = getReuqestList();
     if (proofItem === null) {
-        console.log("Proof does not exist for this index:", index);
         sentRequestList[index] = "Error";
         localStorage.setItem(STORAGE_KEY_SENT_REQUESTS_LIST, JSON.stringify(sentRequestList));
         return;
     }
     if (messagePackItem === null) {
-        console.error("No data found for this message pack");
         sentRequestList[index] = "Error";
         localStorage.setItem(STORAGE_KEY_SENT_REQUESTS_LIST, JSON.stringify(sentRequestList));
         return;
@@ -174,21 +188,14 @@ const validateProof = (index: number) => {
     const signatureLRSRaw = bytesToRawLRS(signatureRaw);
     const signPubKeys = signatureLRSRaw.ring;
     if (!proofPubKeys.some(key => signPubKeys.some(signKey => uint8ArrayEquals(key, signKey)))) {
-        console.error("Public keys do not match");
         sentRequestList[index] = "Failed";
         localStorage.setItem(STORAGE_KEY_SENT_REQUESTS_LIST, JSON.stringify(sentRequestList));
         return;
     }
     const message = messagePackData.message.payload + messagePackData.message.timestamp + messagePackData.message.nonce;
-    console.log("Verifying LRS with message:", message);
     const proofLRS = LRSFromRawLRS(rawLRS);
-    console.log("Proof LRS:", proofLRS);
     const validationResult = verifyLRS(message, proofLRS);
-    console.log("LRS validation result:", validationResult);
     const state = validationResult ? "Passed" : "Failed";
-    if (state === "Failed") {
-        console.error("Proof validation failed");
-    }
     sentRequestList[index] = state;
     localStorage.setItem(STORAGE_KEY_SENT_REQUESTS_LIST, JSON.stringify(sentRequestList));
 }
