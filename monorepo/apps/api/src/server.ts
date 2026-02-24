@@ -359,7 +359,7 @@ app.post<{ Body: LoginFinishRequest }>(
 
 // ===== MESSAGE PACK API ROUTES =====
 
-// POST /message - Create a new message pack (PROTECTED)
+// POST /message - Create a message pack
 app.post<{ Body: CreateMessagePackRequest }>(
   "/message",
   {
@@ -486,7 +486,7 @@ app.post<{ Body: CreateMessagePackRequest }>(
   },
 );
 
-// GET /message/by_id/:id - Get a message pack by ID (PROTECTED)
+// GET /message/by_id/:id - Get message pack by ID
 app.get<{ Params: { id: string } }>(
   "/message/by_id/:id",
   {
@@ -564,7 +564,7 @@ app.get<{ Params: { id: string } }>(
   },
 );
 
-// GET /message/list/by_username/:username - Get all message packs for a user (PROTECTED)
+// GET /message/list/by_username/:username - Get message packs by user
 app.get<{ Params: { username: string } }>(
   "/message/list/by_username/:username",
   {
@@ -646,7 +646,7 @@ app.get<{ Params: { username: string } }>(
   },
 );
 
-// PUT /message/by_id/:id/owner - Transfer ownership of a message pack (PROTECTED)
+// PUT /message/by_id/:id/owner - Transfer ownership of a message pack
 app.put<{ Params: { id: string }; Body: TransferOwnershipRequest }>(
   "/message/by_id/:id/owner",
   {
