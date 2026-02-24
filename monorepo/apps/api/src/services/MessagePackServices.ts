@@ -9,16 +9,10 @@ import {
   ListMessagePacksResponse,
 } from "../interfaces/MessagePackInterfaces";
 
-/**
- * Service for managing Message Packs
- * Message Pack: A bearer asset combining message, signature, and proof
- */
+
 export class MessagePackServices {
   constructor(private pool: Pool) {}
 
-  /**
-   * Validate message pack structure
-   */
   private validateMessagePack(messagePack: MessagePack): boolean {
     try {
       // Check meta
@@ -72,7 +66,6 @@ export class MessagePackServices {
 
   /**
    * Create a new message pack
-   * POST /message
    */
   async createMessagePack(
     request: CreateMessagePackRequest,
@@ -121,7 +114,6 @@ export class MessagePackServices {
 
   /**
    * Get a message pack by ID
-   * GET /message/by_id/:id
    */
   async getMessagePackById(id: string): Promise<GetMessagePackResponse> {
     try {
@@ -163,7 +155,6 @@ export class MessagePackServices {
 
   /**
    * Get all message packs for a specific user
-   * GET /message/list/by_username/:username
    */
   async getMessagePacksByUsername(
     username: string,
@@ -199,10 +190,6 @@ export class MessagePackServices {
     }
   }
 
-  /**
-   * Transfer ownership of a message pack
-   * PUT /message/by_id/:id/owner
-   */
   async transferOwnership(
     id: string,
     newOwner: string,
