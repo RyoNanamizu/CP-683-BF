@@ -78,13 +78,13 @@ export class MessagePackServices {
     request: CreateMessagePackRequest,
   ): Promise<CreateMessagePackResponse> {
     try {
-      // Validate message pack structure
-      if (!this.validateMessagePack(request.messagePack)) {
-        return {
-          success: false,
-          error: "Invalid message pack structure",
-        };
-      }
+      //   // Validate message pack structure
+      //   if (!this.validateMessagePack(request.messagePack)) {
+      //     return {
+      //       success: false,
+      //       error: "Invalid message pack structure",
+      //     };
+      //   }
 
       // Validate owner
       if (!request.owner || request.owner.trim().length === 0) {
