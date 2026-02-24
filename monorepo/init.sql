@@ -1,15 +1,14 @@
--- Create database if it doesn't exist
-CREATE DATABASE IF NOT EXISTS "CP683";
+-- Tables for CP683 database
 
--- Create messages table if it doesn't exist
-CREATE TABLE IF NOT EXISTS messages (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  message TEXT NOT NULL,
-  ring_public_keys BYTEA[] NOT NULL,
-  outer_signature BYTEA NOT NULL,
-  encrypted_proof BYTEA NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT now()
-);
+-- -- Create messages table if it doesn't exist
+-- CREATE TABLE IF NOT EXISTS messages (
+--   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+--   message TEXT NOT NULL,
+--   ring_public_keys BYTEA[] NOT NULL,
+--   outer_signature BYTEA NOT NULL,
+--   encrypted_proof BYTEA NULL,
+--   created_at TIMESTAMP NOT NULL DEFAULT now()
+-- );
 
 -- Create index on created_at for better query performance
 CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at);
@@ -57,4 +56,17 @@ CREATE TABLE IF NOT EXISTS sessions (
 CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(session_token);
 CREATE INDEX IF NOT EXISTS idx_sessions_handle ON sessions(handle);
 CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
+
+-- Create message_packs table for storing bearer assets
+CREATE TABLE IF NOT EXISTS message_packs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  content TEXT NOT NULL, -- JSON string of MessagePack
+  owner VARCHAR(255) NOT NULL, -- username (owner of the bearer asset)
+  timestamp TIMESTAMP NOT NULL DEFAULT now(), -- ISO8601 timestamp
+  created_at TIMESTAMP NOT NULL DEFAULT now()
+);
+
+-- Create indexes for message_packs
+CREATE INDEX IF NOT EXISTS idx_message_packs_owner ON message_packs(owner);
+CREATE INDEX IF NOT EXISTS idx_message_packs_timestamp ON message_packs(timestamp);
 

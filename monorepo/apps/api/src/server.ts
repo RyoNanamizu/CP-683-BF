@@ -5,6 +5,7 @@ import { Pool } from "pg";
 import { hello } from "@repo/shared";
 import { KeyServices } from "./services/KeyServices";
 import { WebAuthnService } from "./services/WebAuthnService";
+import { MessagePackServices } from "./services/MessagePackServices";
 import {
   verifySessionToken,
   AuthenticatedRequest,
@@ -21,6 +22,10 @@ import {
   LoginFinishRequest,
   LoginFinishResponse,
 } from "./interfaces/KeyInterfaces";
+import {
+  CreateMessagePackRequest,
+  TransferOwnershipRequest,
+} from "./interfaces/MessagePackInterfaces";
 
 const app = Fastify({ logger: true, trustProxy: true });
 
@@ -56,6 +61,7 @@ const pool = new Pool({
 // Initialize services with pool
 const keyServices = new KeyServices(pool);
 const webAuthnService = new WebAuthnService(pool);
+const messagePackServices = new MessagePackServices(pool);
 
 // wont check the db, just returns ok
 app.get(
@@ -128,152 +134,6 @@ app.get(
   async () => {
     const r = await pool.query("SELECT NOW() as now");
     return { msg: hello("world"), now: r.rows[0].now };
-  },
-);
-
-// POST /message endpoint
-app.post<{ Body: MessageRequest }>(
-  "/message",
-  {
-    schema: {
-      description: "Store message with ring signature and encrypted proof",
-      body: {
-        type: "object",
-        required: ["message", "ring_public_keys", "outer_signature"],
-        properties: {
-          message: {
-            type: "string",
-            description: "The message to store",
-          },
-          ring_public_keys: {
-            type: "array",
-            minItems: 8,
-            items: {
-              type: "string",
-              description: "Base64-encoded EC public key",
-            },
-            description: "Array of base64-encoded EC public keys",
-          },
-          outer_signature: {
-            type: "string",
-            description: "Base64-encoded ring signature",
-          },
-          encrypted_proof: {
-            type: ["string", "null"],
-            description: "Base64-encoded AES-GCM ciphertext or null",
-          },
-        },
-      },
-      response: {
-        200: {
-          description: "Message stored successfully",
-          type: "object",
-          properties: {
-            success: { type: "boolean" },
-            message_id: { type: "string" },
-            timestamp: { type: "string" },
-          },
-        },
-        400: {
-          description: "Invalid request",
-          type: "object",
-          properties: {
-            success: { type: "boolean" },
-            error: { type: "string" },
-            timestamp: { type: "string" },
-          },
-        },
-      },
-    },
-  },
-  async (request, reply): Promise<MessageResponse> => {
-    const result = await keyServices.processMessage(request.body);
-    return reply.code(result.success ? 200 : 400).send(result);
-  },
-);
-
-// GET /message/{message_id} endpoint
-app.get<{ Params: { message_id: string } }>(
-  "/message/:message_id",
-  {
-    schema: {
-      description: "Retrieve a message by ID",
-      params: {
-        type: "object",
-        required: ["message_id"],
-        properties: {
-          message_id: {
-            type: "string",
-            description: "UUID of the message",
-          },
-        },
-      },
-      response: {
-        200: {
-          description: "Message retrieved successfully",
-          type: "object",
-          properties: {
-            message_id: { type: "string" },
-            message: { type: "string" },
-            ring_public_keys: {
-              type: "array",
-              items: { type: "string" },
-            },
-            outer_signature: { type: "string" },
-            encrypted_proof: { type: ["string", "null"] },
-            created_at: { type: "string" },
-          },
-        },
-        404: {
-          description: "Message not found",
-          type: "object",
-          properties: {
-            success: { type: "boolean" },
-            error: { type: "string" },
-          },
-        },
-      },
-    },
-  },
-  async (request, reply) => {
-    try {
-      const { message_id } = request.params;
-
-      const result = await pool.query(
-        `SELECT id, message, ring_public_keys, outer_signature, encrypted_proof, created_at 
-         FROM messages WHERE id = $1`,
-        [message_id],
-      );
-
-      if (result.rows.length === 0) {
-        return reply.code(404).send({
-          success: false,
-          error: "Message not found",
-        });
-      }
-
-      const row = result.rows[0];
-
-      return {
-        message_id: row.id,
-        message: row.message,
-        ring_public_keys: row.ring_public_keys.map((key: Buffer) =>
-          key.toString("base64"),
-        ),
-        outer_signature: row.outer_signature.toString("base64"),
-        encrypted_proof: row.encrypted_proof
-          ? row.encrypted_proof.toString("base64")
-          : null,
-        created_at: row.created_at.toISOString(),
-      };
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
-      return reply.code(500).send({
-        success: false,
-        error: errorMessage,
-      });
-    }
   },
 );
 
@@ -498,16 +358,15 @@ app.post<{ Body: LoginFinishRequest }>(
   },
 );
 
-// Protected endpoint example - requires valid session token
-// Usage: GET /api/user/profile
-// Headers: Authorization: Bearer <sessionToken>
-// OR x-session-token: <sessionToken>
-app.get(
-  "/api/user/profile",
+// ===== MESSAGE PACK API ROUTES =====
+
+// POST /message - Create a message pack
+app.post<{ Body: CreateMessagePackRequest }>(
+  "/message",
   {
     schema: {
       description:
-        "Get authenticated user profile - requires valid session token",
+        "Create a new message pack (bearer asset) - requires valid session token",
       headers: {
         type: "object",
         properties: {
@@ -521,14 +380,88 @@ app.get(
           },
         },
       },
+      body: {
+        type: "object",
+        required: ["messagePack", "owner"],
+        properties: {
+          messagePack: {
+            type: "object",
+            required: ["meta", "message", "signature", "proof"],
+            properties: {
+              meta: {
+                type: "object",
+                required: ["version", "hash_algorithm", "curve"],
+                properties: {
+                  version: { type: "string" },
+                  hash_algorithm: { type: "string" },
+                  curve: { type: "string" },
+                },
+              },
+              message: {
+                type: "object",
+                required: ["payload", "nonce", "timestamp"],
+                properties: {
+                  payload: { type: "string" },
+                  nonce: { type: "string" },
+                  timestamp: { type: "string", format: "date-time" },
+                },
+              },
+              signature: {
+                type: "object",
+                required: ["c0", "r", "I", "ring"],
+                properties: {
+                  c0: { type: "string" },
+                  r: {
+                    type: "array",
+                    items: { type: "string" },
+                  },
+                  I: { type: "string" },
+                  ring: {
+                    type: "array",
+                    items: { type: "string" },
+                  },
+                },
+              },
+              proof: {
+                type: "object",
+                required: ["gcm", "inner_hash"],
+                properties: {
+                  gcm: {
+                    type: "object",
+                    required: ["ciphertext", "iv", "tag"],
+                    properties: {
+                      ciphertext: { type: "string" },
+                      iv: { type: "string" },
+                      tag: { type: "string" },
+                    },
+                  },
+                  inner_hash: { type: "string" },
+                },
+              },
+            },
+          },
+          owner: {
+            type: "string",
+            description: "Username of the message pack owner",
+          },
+        },
+      },
       response: {
         200: {
-          description: "User profile retrieved successfully",
+          description: "Message pack created successfully",
           type: "object",
           properties: {
             success: { type: "boolean" },
-            handle: { type: "string" },
-            message: { type: "string" },
+            id: { type: "string" },
+            timestamp: { type: "string" },
+          },
+        },
+        400: {
+          description: "Invalid request or validation failed",
+          type: "object",
+          properties: {
+            success: { type: "boolean" },
+            error: { type: "string" },
           },
         },
         401: {
@@ -547,46 +480,70 @@ app.get(
     const verifyResult = await verifySessionToken(pool, request, reply);
     if (verifyResult !== undefined) return verifyResult;
 
-    // User is authenticated, return profile
-    return {
-      success: true,
-      handle: request.user?.handle,
-      message: `Welcome ${request.user?.handle}! This is a protected endpoint.`,
-    };
+    const result = await messagePackServices.createMessagePack(
+      request.body as CreateMessagePackRequest,
+    );
+    return reply.code(result.success ? 200 : 400).send(result);
   },
 );
 
-// Protected endpoint example - list user's messages
-// Usage: GET /api/user/messages
-// Headers: Authorization: Bearer <sessionToken>
-app.get(
-  "/api/user/messages",
+// GET /message/by_id/:id - Get message pack by ID
+app.get<{ Params: { id: string } }>(
+  "/message/by_id/:id",
   {
     schema: {
       description:
-        "Get authenticated user's messages - requires valid session token",
+        "Retrieve a message pack by its ID - requires valid session token",
+      headers: {
+        type: "object",
+        properties: {
+          authorization: {
+            type: "string",
+            description: "Bearer token: Authorization: Bearer <sessionToken>",
+          },
+          "x-session-token": {
+            type: "string",
+            description: "Alternative: Session token in header",
+          },
+        },
+      },
+      params: {
+        type: "object",
+        required: ["id"],
+        properties: {
+          id: {
+            type: "string",
+            description: "UUID of the message pack",
+          },
+        },
+      },
       response: {
         200: {
-          description: "Messages retrieved successfully",
+          description: "Message pack retrieved successfully",
           type: "object",
           properties: {
             success: { type: "boolean" },
-            handle: { type: "string" },
-            messages: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  id: { type: "string" },
-                  message: { type: "string" },
-                  created_at: { type: "string" },
-                },
+            messagePack: {
+              type: "object",
+              properties: {
+                id: { type: "string" },
+                content: { type: "string" },
+                owner: { type: "string" },
+                timestamp: { type: "string" },
               },
             },
           },
         },
+        400: {
+          description: "Message pack not found or error",
+          type: "object",
+          properties: {
+            success: { type: "boolean" },
+            error: { type: "string" },
+          },
+        },
         401: {
-          description: "Unauthorized",
+          description: "Unauthorized - invalid or missing session token",
           type: "object",
           properties: {
             success: { type: "boolean" },
@@ -601,19 +558,176 @@ app.get(
     const verifyResult = await verifySessionToken(pool, request, reply);
     if (verifyResult !== undefined) return verifyResult;
 
-    // Get messages for this user
-    const result = await pool.query(
-      `SELECT id, message, created_at FROM messages 
-       WHERE id IN (
-         SELECT id FROM messages ORDER BY created_at DESC LIMIT 10
-       )`,
+    const result = await messagePackServices.getMessagePackById(
+      (request.params as { id: string }).id,
     );
+    return reply.code(result.success ? 200 : 400).send(result);
+  },
+);
 
-    return {
-      success: true,
-      handle: request.user?.handle,
-      messages: result.rows,
-    };
+// GET /message/list/by_username/:username - Get message packs by user
+app.get<{ Params: { username: string } }>(
+  "/message/list/by_username/:username",
+  {
+    schema: {
+      description:
+        "Retrieve all message packs owned by a specific user - requires valid session token",
+      headers: {
+        type: "object",
+        properties: {
+          authorization: {
+            type: "string",
+            description: "Bearer token: Authorization: Bearer <sessionToken>",
+          },
+          "x-session-token": {
+            type: "string",
+            description: "Alternative: Session token in header",
+          },
+        },
+      },
+      params: {
+        type: "object",
+        required: ["username"],
+        properties: {
+          username: {
+            type: "string",
+            description: "Username of the owner",
+          },
+        },
+      },
+      response: {
+        200: {
+          description: "Message packs retrieved successfully",
+          type: "object",
+          properties: {
+            success: { type: "boolean" },
+            messagePacks: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  id: { type: "string" },
+                  content: { type: "string" },
+                  owner: { type: "string" },
+                  timestamp: { type: "string" },
+                },
+              },
+            },
+            count: { type: "number" },
+          },
+        },
+        400: {
+          description: "Error retrieving message packs",
+          type: "object",
+          properties: {
+            success: { type: "boolean" },
+            error: { type: "string" },
+          },
+        },
+        401: {
+          description: "Unauthorized - invalid or missing session token",
+          type: "object",
+          properties: {
+            success: { type: "boolean" },
+            error: { type: "string" },
+          },
+        },
+      },
+    },
+  },
+  async (request: AuthenticatedRequest, reply) => {
+    // Verify session token
+    const verifyResult = await verifySessionToken(pool, request, reply);
+    if (verifyResult !== undefined) return verifyResult;
+
+    const result = await messagePackServices.getMessagePacksByUsername(
+      (request.params as { username: string }).username,
+    );
+    return reply.code(result.success ? 200 : 400).send(result);
+  },
+);
+
+// PUT /message/by_id/:id/owner - Transfer ownership of a message pack
+app.put<{ Params: { id: string }; Body: TransferOwnershipRequest }>(
+  "/message/by_id/:id/owner",
+  {
+    schema: {
+      description:
+        "Transfer ownership of a message pack to a new owner (bearer asset transfer) - requires valid session token",
+      headers: {
+        type: "object",
+        properties: {
+          authorization: {
+            type: "string",
+            description: "Bearer token: Authorization: Bearer <sessionToken>",
+          },
+          "x-session-token": {
+            type: "string",
+            description: "Alternative: Session token in header",
+          },
+        },
+      },
+      params: {
+        type: "object",
+        required: ["id"],
+        properties: {
+          id: {
+            type: "string",
+            description: "UUID of the message pack",
+          },
+        },
+      },
+      body: {
+        type: "object",
+        required: ["newOwner"],
+        properties: {
+          newOwner: {
+            type: "string",
+            description: "Username of the new owner",
+          },
+        },
+      },
+      response: {
+        200: {
+          description: "Ownership transferred successfully",
+          type: "object",
+          properties: {
+            success: { type: "boolean" },
+            id: { type: "string" },
+            oldOwner: { type: "string" },
+            newOwner: { type: "string" },
+            timestamp: { type: "string" },
+          },
+        },
+        400: {
+          description: "Transfer failed or message pack not found",
+          type: "object",
+          properties: {
+            success: { type: "boolean" },
+            error: { type: "string" },
+          },
+        },
+        401: {
+          description: "Unauthorized - invalid or missing session token",
+          type: "object",
+          properties: {
+            success: { type: "boolean" },
+            error: { type: "string" },
+          },
+        },
+      },
+    },
+  },
+  async (request: AuthenticatedRequest, reply) => {
+    // Verify session token
+    const verifyResult = await verifySessionToken(pool, request, reply);
+    if (verifyResult !== undefined) return verifyResult;
+
+    const result = await messagePackServices.transferOwnership(
+      (request.params as { id: string }).id,
+      (request.body as { newOwner: string }).newOwner,
+    );
+    return reply.code(result.success ? 200 : 400).send(result);
   },
 );
 
