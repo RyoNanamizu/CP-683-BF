@@ -1,7 +1,7 @@
 // import type { MessagePack } from "@repo/shared";
 import { Splitter, Flex, List, Descriptions, type DescriptionsProps, Button, Badge } from "antd";
 import { getMessagePackStorageKey, getValidationResultStorageKey, STORAGE_KEY_MESSAGE_PACKS_LIST, STORAGE_KEY_RECEIVED_REQUESTS_LIST, STORAGE_KEY_SENT_REQUESTS_LIST } from "./constants";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { getCredentialIdForUser, getProofForReceiver, ValidateMessagePack } from "./utils";
 import { base64urlToArrayBuffer, bytesToRawLRS, LRSFromRawLRS, uint8ArrayEquals, uint8ArrayToBase64, verifyLRS, type MessagePack } from "@repo/shared";
 import type { PresetStatusColorType } from "antd/es/_util/colors";
@@ -25,7 +25,7 @@ const getMessagePackList = () => {
     return messagePacksList;
 }
 
-const getReuqestList = () => {
+const getRequestList = () => {
     const messagePacksList = JSON.parse(localStorage.getItem(STORAGE_KEY_SENT_REQUESTS_LIST) ?? "[]") as string[];
     return messagePacksList;
 }
@@ -49,9 +49,9 @@ const convertMessagePackToDisplayData = (messagePack: MessagePack, memo: string)
     }]
 }
 
-const getValidationResult = (messagePack: MessagePack) => {
+const getValidationResult = async (messagePack: MessagePack) => {
     try {
-        return ValidateMessagePack(messagePack);
+        return await ValidateMessagePack(messagePack);
     } catch (error) {
         return false;
     }
@@ -64,7 +64,7 @@ const getProofValidationResult = async (messagePack: MessagePack, username: stri
 }
 
 const sendValidationRequest = (index: number) => {
-    const sentRequestList = getReuqestList();
+    const sentRequestList = getRequestList();
     const messagePackList = getMessagePackList();
     sentRequestList.length = messagePackList.length;
     sentRequestList[index] = "Pending";
@@ -92,20 +92,40 @@ const exportMessagePack = async (index: number, memo: string, username: string) 
     a.download = `message_pack_${index}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    document.removeChild(a);
 }
+
+
 
 const MessagePackDetail = (props: { index: number, memo: string, username: string }) => {
     const data = localStorage.getItem(getMessagePackStorageKey(props.index))
     if (data === null) return <Desc text="No data found for this message pack" />
     const messagePackData = JSON.parse(data) as MessagePack;
-    const validationResult = getValidationResult(messagePackData);
-    return <Flex vertical gap="large" style={{ margin: "16px" }}>
+    const [validationResult, setValidationResult] = useState<boolean | null>(null);
+    useEffect(() => {
+        const validate = async () => {
+            const result = await getValidationResult(messagePackData);
+            setValidationResult(result);
+        }
+        validate();
+    }, [])
+    return validationResult !== null && <Flex vertical gap="large" style={{ margin: "16px" }}>
         <Badge.Ribbon color={validationResult ? "green" : "red"} text={validationResult ? "Passed" : "Failed"}>
             <Descriptions layout="horizontal" column={1} bordered title="Message Info" items={convertMessagePackToDisplayData(messagePackData, props.memo)} />
         </Badge.Ribbon>
         <Flex gap="middle">
-            <Button color="primary" variant="solid" onClick={() => sendValidationRequest(props.index)}>Idenfity Confirmation Request</Button>
+            <Button 
+                color="primary" 
+                variant="solid" 
+                onClick={async () => {
+                    try {
+                        await sendValidationRequest(props.index);
+                    } catch (error) {
+                        console.error("Failed to send validation request:", error);
+                    }
+                }}
+            >
+                Identity Confirmation Request
+            </Button>
             <Button color="primary" variant="solid" onClick={() => exportMessagePack(props.index, props.memo, props.username)}>Export</Button>
         </Flex>
     </Flex>
@@ -128,7 +148,7 @@ export const MessagePackList = (props: { username: string }) => {
 }
 
 export const SentValidationRequestList = () => {
-    const requestList = getReuqestList();
+    const requestList = getRequestList();
     const messagePackList = getMessagePackList();
 
     return <Flex vertical gap="large">
@@ -146,7 +166,7 @@ export const SentValidationRequestList = () => {
 
 const decryptProof = async (index: number, username: string) => {
     const receivedRequestList = getReceivedRequestList();
-    const sentRequestList = getReuqestList();
+    const sentRequestList = getRequestList();
     const data = localStorage.getItem(getMessagePackStorageKey(index))
     if (data === null) {
         receivedRequestList[index] = "Error";
@@ -169,7 +189,7 @@ const decryptProof = async (index: number, username: string) => {
 const validateProof = (index: number) => {
     const proofItem = localStorage.getItem(getValidationResultStorageKey(index));
     const messagePackItem = localStorage.getItem(getMessagePackStorageKey(index));
-    const sentRequestList = getReuqestList();
+    const sentRequestList = getRequestList();
     if (proofItem === null) {
         sentRequestList[index] = "Error";
         localStorage.setItem(STORAGE_KEY_SENT_REQUESTS_LIST, JSON.stringify(sentRequestList));
@@ -211,7 +231,7 @@ const stateMapping: Record<string, PresetStatusColorType> = {
 
 const refuseProof = (index: number) => {
     const receivedRequestList = getReceivedRequestList();
-    const sentRequestList = getReuqestList();
+    const sentRequestList = getRequestList();
     sentRequestList[index] = "Refused";
     receivedRequestList[index] = "Refused";
     localStorage.setItem(STORAGE_KEY_RECEIVED_REQUESTS_LIST, JSON.stringify(receivedRequestList));
