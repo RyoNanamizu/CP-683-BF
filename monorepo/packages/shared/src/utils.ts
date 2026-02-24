@@ -1,5 +1,5 @@
 import { ristretto255, ed25519, ristretto255_hasher } from '@noble/curves/ed25519.js';
-import { bytesToHex, hexToBytes, bytesToNumberLE, concatBytes } from '@noble/curves/utils.js';
+import { bytesToHex, hexToBytes, concatBytes } from '@noble/curves/utils.js';
 import { CURVE_DST } from './constants';
 const RistrettoPoint = ristretto255.Point;
 const ED25519Point = ed25519.Point;
@@ -18,9 +18,11 @@ const G = RistrettoPoint.BASE;
 const mod = ED25519Point.CURVE().n
 
 
-function toBytes(str: string): Uint8Array {
+export function toBytes(str: string): Uint8Array<ArrayBuffer> {
     return new TextEncoder().encode(str);
 }
+
+export { hexToBytes, bytesToHex };
 
 function hashToScalar(...data: Uint8Array[]): bigint {
     const msg = concatBytes(...data);
@@ -34,16 +36,67 @@ function H_p(pub: Uint8Array) {
 }
 // === Signature ===
 
-export interface LRSSignature extends LRSSignatureLight {
+export interface LRSSignature {
     I: string;
     ring: string[];
-}
-
-export interface LRSSignatureLight {
     c0: string;
     r: string[];
 }
 
+export interface LRSSignatureRaw {
+    I: Uint8Array<ArrayBuffer>;
+    ring: Uint8Array<ArrayBuffer>[];
+    c0: Uint8Array<ArrayBuffer>;
+    r: Uint8Array<ArrayBuffer>[];
+}
+
+
+
+
+export function generateLRSFromRawMessage(
+    message: Uint8Array<ArrayBuffer>,
+    pubKeys: string[],
+    signerIndex: number,
+    privKey: string
+): LRSSignature {
+
+    const n = pubKeys.length;
+    const ring = pubKeys.map(pk => RistrettoPoint.fromHex(pk));
+    const x = hashToScalar(hexToBytes(privKey));
+    const P_i = ring[signerIndex];
+
+    const Hp = H_p(P_i.toBytes());
+    const I = Hp.multiply(x);
+
+    const r: bigint[] = new Array(n);
+    const c: bigint[] = new Array(n);
+
+    const u = ed25519.utils.randomSecretKey();
+    const uScalar = hashToScalar(u);
+    const L_i = G.multiply(uScalar);
+    const R_i = Hp.multiply(uScalar);
+    const i1 = (signerIndex + 1) % n;
+
+    c[i1] = hashToScalar(message, L_i.toBytes(), R_i.toBytes());
+    for (let j = 1; j < n; j++) {
+        const idx = (signerIndex + j) % n;
+        r[idx] = hashToScalar(ed25519.utils.randomSecretKey());
+        const L = G.multiply(r[idx]).add(ring[idx].multiply(c[idx]));
+        const R = H_p(ring[idx].toBytes()).multiply(r[idx]).add(I.multiply(c[idx]));
+
+        const nextIdx = (idx + 1) % n;
+        c[nextIdx] = hashToScalar(message, L.toBytes(), R.toBytes());
+    }
+    const summary = (uScalar - c[signerIndex] * x) % mod;
+    r[signerIndex] = (summary + mod) % mod;
+
+    return {
+        c0: c[0].toString(16).padStart(64, '0'),
+        r: r.map(val => val.toString(16).padStart(64, '0')),
+        I: I.toHex().padStart(64, '0'),
+        ring: pubKeys.map(pk => pk.padStart(64, '0'))
+    };
+}
 
 /**
  * Generates a Linkable Ring Signature (LRS) for a message using a ring of public keys.
@@ -70,55 +123,21 @@ export interface LRSSignatureLight {
  * );
  * ```
  */
-export function generateLRS(
-    message: string,
-    pubKeys: string[],
-    signerIndex: number,
-    privKey: string
-): LRSSignature {
+export const generateLRS = (message: string, pubKeys: string[], signerIndex: number, privKey: string) => generateLRSFromRawMessage(toBytes(message), pubKeys, signerIndex, privKey);
 
-    const n = pubKeys.length;
-    const ring = pubKeys.map(pk => RistrettoPoint.fromHex(pk));
-    const x = bytesToNumberLE(hexToBytes(privKey));
-    const P_i = ring[signerIndex];
+export const generateLRSWithoutFakeKeys = (message: string, pubKey: string, privKey: string, ringSize: number = 8) => generateLRSFromRawMessageWithoutFakeKeys(toBytes(message), pubKey, privKey, ringSize);
 
-    const Hp = H_p(P_i.toBytes());
-    const I = Hp.multiply(x);
-
-    const r: bigint[] = new Array(n);
-    const c: bigint[] = new Array(n);
-
-    const u = ed25519.utils.randomSecretKey();
-    const uScalar = bytesToNumberLE(u);
-    const L_i = G.multiply(uScalar);
-    const R_i = Hp.multiply(uScalar);
-    const i1 = (signerIndex + 1) % n;
-
-    c[i1] = hashToScalar(toBytes(message), L_i.toBytes(), R_i.toBytes());
-    for (let j = 1; j < n; j++) {
-        const idx = (signerIndex + j) % n;
-        r[idx] = bytesToNumberLE(ed25519.utils.randomSecretKey()) % mod;
-        const L = G.multiply(r[idx]).add(ring[idx].multiply(c[idx]));
-        const R = H_p(ring[idx].toBytes()).multiply(r[idx]).add(I.multiply(c[idx]));
-
-        const nextIdx = (idx + 1) % n;
-        c[nextIdx] = hashToScalar(toBytes(message), L.toBytes(), R.toBytes());
-    }
-    const summary = (uScalar - c[signerIndex] * x) % mod;
-    r[signerIndex] = (summary + mod) % mod;
-
-    return {
-        c0: c[0].toString(16),
-        r: r.map(val => val.toString(16)),
-        I: I.toHex(),
-        ring: pubKeys  // 如果 pk 是 Uint8Array 或 ArrayBuffer
-    };
+export function generateLRSFromRawMessageWithoutFakeKeys(message: Uint8Array<ArrayBuffer>, pubKey: string, privKey: string, ringSize: number = 8): LRSSignature {
+    const pubKeys = Array.from({ length: ringSize - 1 }, () => generateKeyPair().publicKey);
+    const index = Math.floor(Math.random() * ringSize);
+    pubKeys.splice(index, 0, pubKey);
+    return generateLRSFromRawMessage(message, pubKeys, index, privKey);
 }
 
 // === Verification ===
 
-export function verifyLRS(
-    message: string,
+export function verifyLRSFromRawMessage(
+    message: Uint8Array<ArrayBuffer>,
     sig: LRSSignature
 ): boolean {
     const n = sig.ring.length;
@@ -133,10 +152,22 @@ export function verifyLRS(
         const R = H_p(ring[j].toBytes()).multiply(r[j]).add(I.multiply(c[j]));
 
         const next = (j + 1) % n;
-        c[next] = hashToScalar(toBytes(message), L.toBytes(), R.toBytes());
+        c[next] = hashToScalar(message, L.toBytes(), R.toBytes());
     }
 
     return c[0] === BigInt('0x' + sig.c0);
+}
+
+export const verifyLRS = (message: string, sig: LRSSignature) => verifyLRSFromRawMessage(toBytes(message), sig);
+
+
+export const LRSFromRawLRS = (raw: LRSSignatureRaw): LRSSignature => {
+    return {
+        c0: bytesToHex(raw.c0).padStart(64, '0'),
+        I: bytesToHex(raw.I).padStart(64, '0'),
+        r: raw.r.map(i => bytesToHex(i).padStart(64, '0')),
+        ring: raw.ring.map(i => bytesToHex(i).padStart(64, '0'))
+    }
 }
 
 /**
@@ -160,7 +191,7 @@ export function verifyLRS(
  */
 export const generateKeyPair = (seed?: Uint8Array) => {
     const secretKey = ed25519.utils.randomSecretKey(seed);
-    const x = RistrettoPoint.Fn.fromBytes(secretKey)
+    const x = hashToScalar(secretKey)
     const publicKey = G.multiply(x).toHex();
     return {
         privateKey: bytesToHex(secretKey), // Return hex string directly
@@ -169,9 +200,85 @@ export const generateKeyPair = (seed?: Uint8Array) => {
 };
 
 export const validatePublicKey = (publicKey: string, privateKey: string): boolean => {
-    const x = bytesToNumberLE(hexToBytes(privateKey));
+    const x = hashToScalar(hexToBytes(privateKey));
     const publicKeyPoint = G.multiply(x);
     const validPublicKey = publicKeyPoint.toHex();
     // Logic to validate the public key using the private key
     return validPublicKey === publicKey;
 };
+
+export const LRSToBytes = (LRS: LRSSignature) => {
+    const c0Bytes = hexToBytes(LRS.c0);
+    const rBytes = LRS.r.map(hexToBytes)
+    const IBytes = hexToBytes(LRS.I);
+    const ringBytes = LRS.ring.map(hexToBytes);
+    if (c0Bytes.length !== 32) throw new Error("Invalid c0 length");
+    if (IBytes.length !== 32) throw new Error("Invalid I length");
+    if (rBytes.some(arr => arr.length !== 32)) throw new Error("Invalid r length");
+    if (ringBytes.some(arr => arr.length !== 32)) throw new Error("Invalid ring element length");
+    const totalLength = 32 * (2 + rBytes.length + ringBytes.length) + 4;
+    const result = new Uint8Array(totalLength);
+    let offset = 0;
+    const ringSize = ringBytes.length;
+    const buffer = new Uint8Array(4);
+    const view = new DataView(buffer.buffer);
+    view.setUint32(0, ringSize, false);
+    result.set(buffer, offset);
+    offset += 4;
+    result.set(c0Bytes, offset);
+    offset += c0Bytes.length;
+    result.set(IBytes, offset);
+    offset += IBytes.length;
+    rBytes.forEach(arr => {
+        result.set(arr, offset);
+        offset += arr.length;
+    });
+    ringBytes.forEach(arr => {
+        result.set(arr, offset);
+        offset += arr.length;
+    });
+    return result;
+}
+
+export const bytesToLRS = (bytes: Uint8Array<ArrayBuffer>): LRSSignature => {
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    const ringSize = view.getUint32(0, false);
+    let offset = 4;
+    const c0Bytes = new Uint8Array(bytes.buffer, bytes.byteOffset + offset, 32);
+    offset += 32;
+    const IBytes = new Uint8Array(bytes.buffer, bytes.byteOffset + offset, 32);
+    offset += 32;
+    const rBytes = new Uint8Array(bytes.buffer, bytes.byteOffset + offset, 32 * ringSize);
+    offset += 32 * ringSize;
+    const ringBytes = new Uint8Array(bytes.buffer, bytes.byteOffset + offset, 32 * ringSize);
+    return {
+        c0: bytesToHex(c0Bytes),
+        I: bytesToHex(IBytes),
+        r: Array.from({ length: ringSize }, (_, i) => bytesToHex(rBytes.slice(i * 32, (i + 1) * 32))),
+        ring: Array.from({ length: ringSize }, (_, i) => bytesToHex(ringBytes.slice(i * 32, (i + 1) * 32))),
+    }
+}
+
+export const bytesToRawLRS = (bytes: Uint8Array<ArrayBuffer>): LRSSignatureRaw => {
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    const ringSize = view.getUint32(0, false);
+    let offset = 4;
+    const c0Bytes = new Uint8Array(bytes.buffer, bytes.byteOffset + offset, 32);
+    offset += 32;
+    const IBytes = new Uint8Array(bytes.buffer, bytes.byteOffset + offset, 32);
+    offset += 32;
+    const rBytes = new Uint8Array(bytes.buffer, bytes.byteOffset + offset, 32 * ringSize);
+    offset += 32 * ringSize;
+    const ringBytes = new Uint8Array(bytes.buffer, bytes.byteOffset + offset, 32 * ringSize);
+    return {
+        c0: c0Bytes,
+        I: IBytes,
+        r: Array.from({ length: ringSize }, (_, i) => rBytes.slice(i * 32, (i + 1) * 32)),
+        ring: Array.from({ length: ringSize }, (_, i) => ringBytes.slice(i * 32, (i + 1) * 32)),
+    }
+}
+
+export const uint8ArrayEquals = (a: Uint8Array, b: Uint8Array): boolean => {
+    if (a.length !== b.length) return false;
+    return a.every((val, index) => val === b[index]);
+}

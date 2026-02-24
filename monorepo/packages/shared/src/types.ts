@@ -31,3 +31,32 @@ export type LoginChallenge = {
     }>;
     userVerification: string;
 };
+
+export interface MessagePack {
+    meta: Meta;
+    message: Message;
+    signature: string;
+    proof: Proof;
+}
+
+export interface Meta {
+    version: string;
+    hash_algorithm: string;
+    curve: string;
+}
+
+export interface Message {
+    payload: string;
+    nonce: string;
+    timestamp: string;
+}
+
+export interface Proof {
+    gcm: Gcm;
+    inner_hash: string;
+}
+
+export interface Gcm {
+    ciphertext: string;
+    iv: string;
+}

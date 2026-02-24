@@ -33,6 +33,19 @@ export function fromBufferSource(input: BufferSource) {
   return bytes;
 }
 
+export function uint8ArrayToBase64(uint8: Uint8Array) {
+  return btoa(String.fromCharCode(...uint8));
+}
+
+export function base64ToUint8Array(base64: string) {
+  const binaryString = atob(base64);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes;
+}
+
 export * from "./types";
 export * from "./constants";
 export * from "./utils";

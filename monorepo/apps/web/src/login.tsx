@@ -1,10 +1,11 @@
 import { base64urlToArrayBuffer, fetchChallenge, PRF_NOT_ENABLED_ERROR, SESSION_TOKEN_KEY, USER_EXISTS_ERROR } from "@repo/shared";
 import "antd/dist/reset.css";
-import { Button, Input, message, Space } from 'antd';
+import { Button, Flex, Input, message, Space } from 'antd';
 import { useCallback, useEffect, useState } from "react";
 import type { MessageInstance } from "antd/es/message/interface";
 import type { CreateCredentialOptions, LoginChallenge } from "@repo/shared"
-import { GenerateKey } from "./generateKey";
+import { SignPanel } from "./Sign";
+import { STORAGE_KEY_CREDENTIAL_ID } from "./constants";
 
 
 
@@ -90,7 +91,10 @@ const handleLogin = async (loginData: LoginChallenge) => {
         }),
     });
     if (!sessionRes.ok) throw new Error(`Failed to create session: ${sessionRes.statusText}`);
-    return sessionRes.json() as Promise<LoginSuccessResponse>;
+    return {
+        result: await sessionRes.json() as LoginSuccessResponse,
+        credentialId: publicKeyCredential.id,
+    };
 };
 
 const getChallenge = (setCurrentUser: React.Dispatch<React.SetStateAction<string | null>>) => (messageApi: MessageInstance) => async (username: string) => {
@@ -103,8 +107,8 @@ const getChallenge = (setCurrentUser: React.Dispatch<React.SetStateAction<string
 
         const loginData = await fetchChallenge(username, "/api/auth/challenge");
         if ("error" in loginData) throw new Error(loginData.error);
-        const loginResult = await handleLogin(loginData as LoginChallenge);
-        if (!loginResult?.success) throw new Error("Login failed");
+        const { result: loginResult, credentialId } = await handleLogin(loginData as LoginChallenge) || {};
+        if (!loginResult?.success || !credentialId) throw new Error("Login failed");
 
         messageApi.open({
             type: "success",
@@ -114,6 +118,7 @@ const getChallenge = (setCurrentUser: React.Dispatch<React.SetStateAction<string
         setCurrentUser(loginResult.handle)
 
         sessionStorage.setItem(SESSION_TOKEN_KEY, loginResult.sessionToken);
+        localStorage.setItem(STORAGE_KEY_CREDENTIAL_ID, credentialId);
     } catch (error) {
         messageApi.open({
             type: "error",
@@ -140,6 +145,7 @@ const fetchProfile = (setCurrentUser: React.Dispatch<React.SetStateAction<string
 
 const clearSession = () => {
     sessionStorage.removeItem(SESSION_TOKEN_KEY);
+    localStorage.removeItem(STORAGE_KEY_CREDENTIAL_ID);
 }
 
 
@@ -155,23 +161,31 @@ function Login() {
     }, [fetchProfileWithSetter]);
 
     return currentUser === null ? (
-        <div style={{ padding: 24 }}>
+        <Flex vertical gap="large">
             {contextHolder}
             <h1>Login</h1>
             <Space.Compact style={{ width: '100%' }}>
                 <Input placeholder="User Name" value={username} onChange={e => setUsername(e.target.value)} />
                 <Button type="primary" onClick={() => getChallengeWithMessage(username)}>Login</Button>
             </Space.Compact>
-        </div>
+        </Flex>
     ) : (
-        <div style={{ padding: 24 }}>
+        <Flex vertical gap="large">
             {contextHolder}
             <h1>Welcome, {currentUser}</h1>
-            <Button type="primary" onClick={() => { clearSession(); setCurrentUser(null); }}>Logout</Button>
-            <GenerateKey username={currentUser} />
-
-        </div>
+            <Flex gap="middle" justify="center">
+                <Button type="primary" onClick={() => { clearSession(); setCurrentUser(null); }}>Logout</Button>
+                <Button type="primary">Import Message Pack</Button>
+            </Flex>
+            <SignPanel username={currentUser} />
+        </Flex>
     );
 }
 
-export { Login };
+export function LoginWrapper() {
+    return <Flex gap="middle" vertical wrap style={{ width: "100%" }}>
+        <Login />
+    </Flex>
+}
+
+
