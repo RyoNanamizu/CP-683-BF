@@ -26,6 +26,12 @@ import {
   CreateMessagePackRequest,
   TransferOwnershipRequest,
 } from "./interfaces/MessagePackInterfaces";
+import { ValidationRequestServices } from "./services/ValidationRequestServices";
+import {
+  CreateValidationRequestRequest,
+  RespondOrRefuseRequest,
+  UpdateValidationResultRequest,
+} from "./interfaces/ValidationRequestInterfaces";
 
 const app = Fastify({ logger: true, trustProxy: true });
 
@@ -730,5 +736,400 @@ app.put<{ Params: { id: string }; Body: TransferOwnershipRequest }>(
     return reply.code(result.success ? 200 : 400).send(result);
   },
 );
+
+// ===== Validation Request API ROUTES =====
+
+// Initialize services
+const validationRequestServices = new ValidationRequestServices(pool);
+
+// Local DTO for create body (frontend should NOT send requester identity)
+type CreateValidationRequestBody = {
+  messagePackId: string;
+  responder: string; // handle/username of the responder
+};
+
+// map snake_case record to camelCase response item
+function mapValidationRecord(r: any) {
+  return {
+    id: r.id,
+    messagePackId: r.message_pack_id,
+    requester: r.requester,
+    responder: r.responder,
+    status: r.status,
+    responsePayload: r.response_payload ?? null,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
+
+// POST /validation-requests - create a validation request (Sent)
+app.post<{ Body: CreateValidationRequestBody }>(
+  "/validation-requests",
+  {
+    schema: {
+      description:
+        "Create a validation request (Sent Validation Requests) - requires valid session token",
+      headers: {
+        type: "object",
+        properties: {
+          authorization: {
+            type: "string",
+            description: "Bearer token: Authorization: Bearer <sessionToken>",
+          },
+          "x-session-token": {
+            type: "string",
+            description: "Alternative: Session token in header",
+          },
+        },
+      },
+      body: {
+        type: "object",
+        required: ["messagePackId", "responder"],
+        properties: {
+          messagePackId: { type: "string" },
+          responder: { type: "string" },
+        },
+      },
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            success: { type: "boolean" },
+            id: { type: "string" },
+            reused: { type: "boolean" },
+          },
+        },
+        400: {
+          type: "object",
+          properties: { success: { type: "boolean" }, error: { type: "string" } },
+        },
+        401: {
+          type: "object",
+          properties: { success: { type: "boolean" }, error: { type: "string" } },
+        },
+      },
+    },
+  },
+  async (request: AuthenticatedRequest, reply) => {
+    const verifyResult = await verifySessionToken(pool, request, reply);
+    if (verifyResult !== undefined) return verifyResult;
+
+    const requester = request.user!.handle;
+    const body = request.body as CreateValidationRequestBody;
+
+    const svcReq: CreateValidationRequestRequest = {
+      messagePackId: body.messagePackId,
+      requester,
+      responder: body.responder,
+    };
+
+    // if want strict bearer-asset enforcement:
+    // const result = await validationRequestServices.createValidationRequest(svcReq, { enforceOwnership: true });
+    const result = await validationRequestServices.createValidationRequest(svcReq);
+
+    return reply.code(result.success ? 200 : 400).send(result);
+  },
+);
+
+// GET /validation-requests/sent - list sent requests
+app.get(
+  "/validation-requests/sent",
+  {
+    schema: {
+      description:
+        "List validation requests sent by current user - requires valid session token",
+      headers: {
+        type: "object",
+        properties: {
+          authorization: {
+            type: "string",
+            description: "Bearer token: Authorization: Bearer <sessionToken>",
+          },
+          "x-session-token": {
+            type: "string",
+            description: "Alternative: Session token in header",
+          },
+        },
+      },
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            success: { type: "boolean" },
+            requests: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  id: { type: "string" },
+                  messagePackId: { type: "string" },
+                  requester: { type: "string" },
+                  responder: { type: "string" },
+                  status: { type: "string" },
+                  responsePayload: { type: ["string", "null"] },
+                  createdAt: { type: "string" },
+                  updatedAt: { type: "string" },
+                },
+              },
+            },
+            count: { type: "number" },
+          },
+        },
+        400: {
+          type: "object",
+          properties: { success: { type: "boolean" }, error: { type: "string" } },
+        },
+        401: {
+          type: "object",
+          properties: { success: { type: "boolean" }, error: { type: "string" } },
+        },
+      },
+    },
+  },
+  async (request: AuthenticatedRequest, reply) => {
+    const verifyResult = await verifySessionToken(pool, request, reply);
+    if (verifyResult !== undefined) return verifyResult;
+
+    const requester = request.user!.handle;
+    const result = await validationRequestServices.listSentByRequester(requester);
+
+    if (!result.success) return reply.code(400).send(result);
+
+    return reply.code(200).send({
+      success: true,
+      requests: (result.requests ?? []).map(mapValidationRecord),
+      count: result.count ?? 0,
+    });
+  },
+);
+
+// GET /validation-requests/received - list received requests
+app.get(
+  "/validation-requests/received",
+  {
+    schema: {
+      description:
+        "List validation requests received by current user - requires valid session token",
+      headers: {
+        type: "object",
+        properties: {
+          authorization: {
+            type: "string",
+            description: "Bearer token: Authorization: Bearer <sessionToken>",
+          },
+          "x-session-token": {
+            type: "string",
+            description: "Alternative: Session token in header",
+          },
+        },
+      },
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            success: { type: "boolean" },
+            requests: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  id: { type: "string" },
+                  messagePackId: { type: "string" },
+                  requester: { type: "string" },
+                  responder: { type: "string" },
+                  status: { type: "string" },
+                  responsePayload: { type: ["string", "null"] },
+                  createdAt: { type: "string" },
+                  updatedAt: { type: "string" },
+                },
+              },
+            },
+            count: { type: "number" },
+          },
+        },
+        400: {
+          type: "object",
+          properties: { success: { type: "boolean" }, error: { type: "string" } },
+        },
+        401: {
+          type: "object",
+          properties: { success: { type: "boolean" }, error: { type: "string" } },
+        },
+      },
+    },
+  },
+  async (request: AuthenticatedRequest, reply) => {
+    const verifyResult = await verifySessionToken(pool, request, reply);
+    if (verifyResult !== undefined) return verifyResult;
+
+    const responder = request.user!.handle;
+    const result =
+      await validationRequestServices.listReceivedByResponder(responder);
+
+    if (!result.success) return reply.code(400).send(result);
+
+    return reply.code(200).send({
+      success: true,
+      requests: (result.requests ?? []).map(mapValidationRecord),
+      count: result.count ?? 0,
+    });
+  },
+);
+
+// PUT /validation-requests/:id/respond - responder responds OR refuses (merged)
+app.put<{ Params: { id: string }; Body: RespondOrRefuseRequest }>(
+  "/validation-requests/:id/respond",
+  {
+    schema: {
+      description:
+        "Responder responds or refuses a validation request (merged) - requires valid session token",
+      headers: {
+        type: "object",
+        properties: {
+          authorization: {
+            type: "string",
+            description: "Bearer token: Authorization: Bearer <sessionToken>",
+          },
+          "x-session-token": {
+            type: "string",
+            description: "Alternative: Session token in header",
+          },
+        },
+      },
+      params: {
+        type: "object",
+        required: ["id"],
+        properties: {
+          id: { type: "string", description: "UUID of the validation request" },
+        },
+      },
+      body: {
+        type: "object",
+        required: ["action"],
+        properties: {
+          action: { type: "string", enum: ["respond", "refuse"] },
+          responsePayload: { type: "string" },
+        },
+        allOf: [
+          {
+            if: {
+              properties: { action: { const: "respond" } },
+            },
+            then: {
+              required: ["responsePayload"],
+            },
+          },
+        ],
+      },
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            success: { type: "boolean" },
+            id: { type: "string" },
+            status: { type: "string" },
+            updated_at: { type: "string" },
+          },
+        },
+        400: {
+          type: "object",
+          properties: { success: { type: "boolean" }, error: { type: "string" } },
+        },
+        401: {
+          type: "object",
+          properties: { success: { type: "boolean" }, error: { type: "string" } },
+        },
+      },
+    },
+  },
+  async (request: AuthenticatedRequest, reply) => {
+    const verifyResult = await verifySessionToken(pool, request, reply);
+    if (verifyResult !== undefined) return verifyResult;
+
+    const responder = request.user!.handle;
+    const id = (request.params as { id: string }).id;
+
+    const result = await validationRequestServices.respondOrRefuse(
+      id,
+      responder,
+      request.body as RespondOrRefuseRequest,
+    );
+
+    return reply.code(result.success ? 200 : 400).send(result);
+  },
+);
+
+// PUT /validation-requests/:id/result - requester sets final verification result
+app.put<{ Params: { id: string }; Body: UpdateValidationResultRequest }>(
+  "/validation-requests/:id/result",
+  {
+    schema: {
+      description:
+        "Requester sets validation result (Passed/Failed/Error) - requires valid session token",
+      headers: {
+        type: "object",
+        properties: {
+          authorization: {
+            type: "string",
+            description: "Bearer token: Authorization: Bearer <sessionToken>",
+          },
+          "x-session-token": {
+            type: "string",
+            description: "Alternative: Session token in header",
+          },
+        },
+      },
+      params: {
+        type: "object",
+        required: ["id"],
+        properties: {
+          id: { type: "string", description: "UUID of the validation request" },
+        },
+      },
+      body: {
+        type: "object",
+        required: ["result"],
+        properties: {
+          result: { type: "string", enum: ["Passed", "Failed", "Error"] },
+        },
+      },
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            success: { type: "boolean" },
+            id: { type: "string" },
+            status: { type: "string" },
+            updated_at: { type: "string" },
+          },
+        },
+        400: {
+          type: "object",
+          properties: { success: { type: "boolean" }, error: { type: "string" } },
+        },
+        401: {
+          type: "object",
+          properties: { success: { type: "boolean" }, error: { type: "string" } },
+        },
+      },
+    },
+  },
+  async (request: AuthenticatedRequest, reply) => {
+    const verifyResult = await verifySessionToken(pool, request, reply);
+    if (verifyResult !== undefined) return verifyResult;
+
+    const requester = request.user!.handle;
+    const id = (request.params as { id: string }).id;
+
+    const result = await validationRequestServices.updateValidationResult(
+      id,
+      requester,
+      request.body as UpdateValidationResultRequest,
+    );
+
+    return reply.code(result.success ? 200 : 400).send(result);
+  },
+);
+
 
 await app.listen({ host: "0.0.0.0", port: 3000 });
