@@ -5,7 +5,6 @@ import { useCallback, useEffect, useState } from "react";
 import type { MessageInstance } from "antd/es/message/interface";
 import type { CreateCredentialOptions, LoginChallenge } from "@repo/shared"
 import { SignPanel } from "./Sign";
-import { STORAGE_KEY_CREDENTIAL_ID } from "./constants";
 
 
 
@@ -118,7 +117,6 @@ const getChallenge = (setCurrentUser: React.Dispatch<React.SetStateAction<string
         setCurrentUser(loginResult.handle)
 
         sessionStorage.setItem(SESSION_TOKEN_KEY, loginResult.sessionToken);
-        localStorage.setItem(STORAGE_KEY_CREDENTIAL_ID, credentialId);
     } catch (error) {
         messageApi.open({
             type: "error",
@@ -127,10 +125,10 @@ const getChallenge = (setCurrentUser: React.Dispatch<React.SetStateAction<string
     }
 };
 
-const fetchProfile = (setCurrentUser: React.Dispatch<React.SetStateAction<string | null>>) => async () => {
+const fetchProfile = (setCurrentUser: React.Dispatch<React.SetStateAction<string | null>>) => (setCurrentCredentialId: React.Dispatch<React.SetStateAction<string | null>>) => async () => {
     const sessionToken = sessionStorage.getItem(SESSION_TOKEN_KEY);
     if (sessionToken) {
-        const res = await fetch("/api/api/user/profile", {
+        const res = await fetch("/api/session", {
             headers: { "x-session-token": `${sessionToken}` },
         });
 
@@ -138,6 +136,7 @@ const fetchProfile = (setCurrentUser: React.Dispatch<React.SetStateAction<string
             const profile = await res.json();
             if (profile.success) {
                 setCurrentUser(profile.handle);
+                setCurrentCredentialId(profile.credentialId);
             }
         }
     }
@@ -145,7 +144,6 @@ const fetchProfile = (setCurrentUser: React.Dispatch<React.SetStateAction<string
 
 const clearSession = () => {
     sessionStorage.removeItem(SESSION_TOKEN_KEY);
-    localStorage.removeItem(STORAGE_KEY_CREDENTIAL_ID);
 }
 
 
@@ -154,7 +152,16 @@ function Login() {
     const [currentUser, setCurrentUser] = useState<string | null>(null);
     const [messageApi, contextHolder] = message.useMessage();
     const getChallengeWithMessage = useCallback((username: string) => getChallenge(setCurrentUser)(messageApi)(username), [messageApi]);
-    const fetchProfileWithSetter = useCallback(() => fetchProfile(setCurrentUser)(), []);
+    const fetchProfileWithSetter = useCallback(() => fetchProfile(setCurrentUser)(setCurrentCredentialId)(), []);
+    const [currentCredentialId, setCurrentCredentialId] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (sessionStorage.getItem(SESSION_TOKEN_KEY)) {
+            fetchProfileWithSetter();
+        } else {
+            setCurrentUser(null);
+        }
+    }, []);
 
     useEffect(() => {
         fetchProfileWithSetter();
@@ -177,7 +184,7 @@ function Login() {
                 <Button type="primary" onClick={() => { clearSession(); setCurrentUser(null); }}>Logout</Button>
                 <Button type="primary">Import Message Pack</Button>
             </Flex>
-            <SignPanel username={currentUser} />
+            {currentCredentialId !== null && <SignPanel username={currentUser} credentialId={currentCredentialId} />}
         </Flex>
     );
 }

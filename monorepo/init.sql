@@ -65,6 +65,8 @@ CREATE TABLE
 -- Create indexes for message_packs
 CREATE INDEX IF NOT EXISTS idx_message_packs_owner ON message_packs (owner);
 
+CREATE INDEX IF NOT EXISTS idx_message_packs_timestamp ON message_packs (timestamp);
+
 -- Create indexes for Validation Requests
 CREATE TABLE
   IF NOT EXISTS validation_requests (

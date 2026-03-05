@@ -1,15 +1,13 @@
 import { Alert, Button, Collapse, Flex, Input, type CollapseProps } from "antd"
 import { MessagePackList, ReceivedValidationRequestList, SentValidationRequestList } from "./Message";
-import { getCredentialIdForUser, getMessagePack } from "./utils";
+import { getMessagePack } from "./utils";
 import { useCallback, useState } from "react";
 import type { MessagePack } from "@repo/shared";
-import { getMessagePackStorageKey, STORAGE_KEY_CREDENTIAL_ID, STORAGE_KEY_MESSAGE_PACKS_LIST } from "./constants";
+import { getMessagePackStorageKey, STORAGE_KEY_MESSAGE_PACKS_LIST } from "./constants";
 
 
 
-const signMessageToMessagePack = async (message: string, username: string, memo: string): Promise<MessagePack> => {
-    const credentialId = localStorage.getItem(STORAGE_KEY_CREDENTIAL_ID) ?? (await getCredentialIdForUser(username));
-    localStorage.setItem(STORAGE_KEY_CREDENTIAL_ID, credentialId);
+const signMessageToMessagePack = async (message: string, credentialId: string, memo: string): Promise<MessagePack> => {
     const timestamp = new Date().toISOString();
     const nonce = crypto.randomUUID();
     const messagePack = await getMessagePack(message, timestamp, nonce, credentialId);
@@ -22,11 +20,14 @@ const signMessageToMessagePack = async (message: string, username: string, memo:
 }
 
 
-const SignMessage = (props: Props) => {
+const SignMessage = (props: {
+    username: string
+    credentialId: string
+}) => {
     const [message, setMessage] = useState<string>("");
     const [memo, setMemo] = useState<string>("");
 
-    const signMessage = useCallback(() => signMessageToMessagePack(message, props.username, memo), [message, memo, props.username]);
+    const signMessage = useCallback(() => signMessageToMessagePack(message, props.credentialId, memo), [message, memo, props.credentialId]);
 
     return <Flex vertical gap="middle">
         <Flex>
@@ -46,22 +47,25 @@ const SignMessage = (props: Props) => {
 
 
 
-const getItems = (props: Props): CollapseProps['items'] => {
+const getItems = (props: {
+    username: string
+    credentialId: string
+}): CollapseProps['items'] => {
     return [
         {
             key: 1,
             label: "Sign a new Message",
-            children: <SignMessage username={props.username} />,
+            children: <SignMessage username={props.username} credentialId={props.credentialId} />,
         },
         {
             key: 2,
             label: "Message Pack List",
-            children: <MessagePackList username={props.username} />,
+            children: <MessagePackList username={props.username} credentialId={props.credentialId} />,
         },
         {
             key: 3,
             label: "Received Validation Request List",
-            children: <ReceivedValidationRequestList username={props.username} />,
+            children: <ReceivedValidationRequestList username={props.username} credentialId={props.credentialId} />,
         },
         {
             key: 4,
@@ -71,12 +75,15 @@ const getItems = (props: Props): CollapseProps['items'] => {
     ]
 }
 
-type Props = {
-    username: string
-}
 
-export const SignPanel = (props: Props) => {
-    const calItems = useCallback((props: Props) => getItems(props), [props]);
+export const SignPanel = (props: {
+    username: string
+    credentialId: string
+}) => {
+    const calItems = useCallback((props: {
+        username: string
+        credentialId: string
+    }) => getItems(props), [props]);
     return <Collapse items={calItems(props)} defaultActiveKey={[1]} />
 }
 

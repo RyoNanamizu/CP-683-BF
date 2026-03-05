@@ -364,6 +364,94 @@ app.post<{ Body: LoginFinishRequest }>(
   },
 );
 
+// GET /session
+app.get(
+  "/session",
+  {
+    schema: {
+      description:
+        "Get current session info (username and credentialId) - requires valid session token",
+      headers: {
+        type: "object",
+        properties: {
+          authorization: {
+            type: "string",
+            description: "Bearer token: Authorization: Bearer <sessionToken>",
+          },
+          "x-session-token": {
+            type: "string",
+            description: "Alternative: Session token in header",
+          },
+        },
+      },
+      response: {
+        200: {
+          description: "Session info retrieved successfully",
+          type: "object",
+          properties: {
+            success: { type: "boolean" },
+            username: { type: "string" },
+            credentialId: { type: "string" },
+            creditialId: { type: "string" },
+          },
+        },
+        401: {
+          description: "Unauthorized - invalid or missing session token",
+          type: "object",
+          properties: {
+            success: { type: "boolean" },
+            error: { type: "string" },
+          },
+        },
+        404: {
+          description: "Credential not found for session user",
+          type: "object",
+          properties: {
+            success: { type: "boolean" },
+            error: { type: "string" },
+          },
+        },
+      },
+    },
+  },
+  async (request: AuthenticatedRequest, reply) => {
+    const verifyResult = await verifySessionToken(pool, request, reply);
+    if (verifyResult !== undefined) {
+      return verifyResult;
+    }
+
+    const username = request.user?.handle;
+
+    if (!username) {
+      return reply.code(401).send({
+        success: false,
+        error: "Invalid session data",
+      });
+    }
+
+    const credentialResult = await pool.query(
+      "SELECT credential_id FROM credentials WHERE handle = $1",
+      [username],
+    );
+
+    if (credentialResult.rows.length === 0) {
+      return reply.code(404).send({
+        success: false,
+        error: "Credential not found for session user",
+      });
+    }
+
+    const credentialId = credentialResult.rows[0].credential_id;
+
+    return {
+      success: true,
+      username,
+      credentialId,
+      creditialId: credentialId,
+    };
+  },
+);
+
 // ===== MESSAGE PACK API ROUTES =====
 
 // POST /message - Create a message pack

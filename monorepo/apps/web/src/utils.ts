@@ -183,12 +183,3 @@ export const getProofForReceiver = async (messagePack: MessagePack, credentialId
     const result: ArrayBuffer | null = results.find(res => res !== null) ?? null;
     return result;
 }
-
-export const getCredentialIdForUser = async (username: string) => {
-    const credentialIds = await getCredentialIds(username);
-    if (credentialIds.length === 0) {
-        throw new Error("No credentials available for signing");
-    }
-    const credentialId = credentialIds[0]; // For simplicity, we just use the first credential. In a real app, you would let the user choose.
-    return credentialId;
-}

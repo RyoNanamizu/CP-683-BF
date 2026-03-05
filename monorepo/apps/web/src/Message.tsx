@@ -2,7 +2,7 @@
 import { Splitter, Flex, List, Descriptions, type DescriptionsProps, Button, Badge } from "antd";
 import { getMessagePackStorageKey, getValidationResultStorageKey, STORAGE_KEY_MESSAGE_PACKS_LIST, STORAGE_KEY_RECEIVED_REQUESTS_LIST, STORAGE_KEY_SENT_REQUESTS_LIST } from "./constants";
 import { useEffect, useState } from "react";
-import { getCredentialIdForUser, getProofForReceiver, ValidateMessagePack } from "./utils";
+import { getProofForReceiver, ValidateMessagePack } from "./utils";
 import { base64urlToArrayBuffer, bytesToRawLRS, LRSFromRawLRS, uint8ArrayEquals, uint8ArrayToBase64, verifyLRS, type MessagePack } from "@repo/shared";
 import type { PresetStatusColorType } from "antd/es/_util/colors";
 
@@ -57,8 +57,7 @@ const getValidationResult = async (messagePack: MessagePack) => {
     }
 }
 
-const getProofValidationResult = async (messagePack: MessagePack, username: string) => {
-    const credentialId = await getCredentialIdForUser(username);
+const getProofValidationResult = async (credentialId: string, messagePack: MessagePack) => {
     const result = getProofForReceiver(messagePack, credentialId);
     return result;
 }
@@ -75,9 +74,8 @@ const sendValidationRequest = (index: number) => {
     localStorage.setItem(STORAGE_KEY_RECEIVED_REQUESTS_LIST, JSON.stringify(receivedRequestList));
 }
 
-const exportMessagePack = async (index: number, memo: string, username: string) => {
+const exportMessagePack = async (credentialId: string, index: number, memo: string) => {
     const data = localStorage.getItem(getMessagePackStorageKey(index))
-    const credentialId = await getCredentialIdForUser(username);
     if (data === null) return;
     const messagePackData = JSON.parse(data) as MessagePack;
     const messagePackExportData = {
@@ -96,7 +94,7 @@ const exportMessagePack = async (index: number, memo: string, username: string) 
 
 
 
-const MessagePackDetail = (props: { index: number, memo: string, username: string }) => {
+const MessagePackDetail = (props: { index: number, memo: string, username: string, credentialId: string }) => {
     const data = localStorage.getItem(getMessagePackStorageKey(props.index))
     if (data === null) return <Desc text="No data found for this message pack" />
     const messagePackData = JSON.parse(data) as MessagePack;
@@ -113,9 +111,9 @@ const MessagePackDetail = (props: { index: number, memo: string, username: strin
             <Descriptions layout="horizontal" column={1} bordered title="Message Info" items={convertMessagePackToDisplayData(messagePackData, props.memo)} />
         </Badge.Ribbon>
         <Flex gap="middle">
-            <Button 
-                color="primary" 
-                variant="solid" 
+            <Button
+                color="primary"
+                variant="solid"
                 onClick={async () => {
                     try {
                         await sendValidationRequest(props.index);
@@ -126,12 +124,12 @@ const MessagePackDetail = (props: { index: number, memo: string, username: strin
             >
                 Identity Confirmation Request
             </Button>
-            <Button color="primary" variant="solid" onClick={() => exportMessagePack(props.index, props.memo, props.username)}>Export</Button>
+            <Button color="primary" variant="solid" onClick={() => exportMessagePack(props.credentialId, props.index, props.memo)}>Export</Button>
         </Flex>
     </Flex>
 }
 
-export const MessagePackList = (props: { username: string }) => {
+export const MessagePackList = (props: { username: string, credentialId: string }) => {
     const [currentIndex, setCurrentIndex] = useState<number | null>(null);
     const messagePackList = getMessagePackList();
 
@@ -141,7 +139,7 @@ export const MessagePackList = (props: { username: string }) => {
                 <List dataSource={messagePackList} renderItem={(item, index) => <List.Item onClick={() => setCurrentIndex(index)}>{item}</List.Item>} />
             </Splitter.Panel>
             <Splitter.Panel min="20%">
-                {currentIndex !== null && <MessagePackDetail index={currentIndex} memo={messagePackList[currentIndex]} username={props.username} />}
+                {currentIndex !== null && <MessagePackDetail index={currentIndex} memo={messagePackList[currentIndex]} username={props.username} credentialId={props.credentialId} />}
             </Splitter.Panel>
         </Splitter >
     </Flex>
@@ -164,7 +162,7 @@ export const SentValidationRequestList = () => {
     </Flex>
 }
 
-const decryptProof = async (index: number, username: string) => {
+const decryptProof = async (index: number, credentialId: string) => {
     const receivedRequestList = getReceivedRequestList();
     const sentRequestList = getRequestList();
     const data = localStorage.getItem(getMessagePackStorageKey(index))
@@ -174,7 +172,7 @@ const decryptProof = async (index: number, username: string) => {
         return;
     }
     const messagePackData = JSON.parse(data) as MessagePack;
-    const result = await getProofValidationResult(messagePackData, username);
+    const result = await getProofValidationResult(credentialId, messagePackData);
     if (result === null) {
         receivedRequestList[index] = "Failed";
     } else {
@@ -238,7 +236,7 @@ const refuseProof = (index: number) => {
     localStorage.setItem(STORAGE_KEY_SENT_REQUESTS_LIST, JSON.stringify(sentRequestList));
 }
 
-export const ReceivedValidationRequestList = (props: { username: string }) => {
+export const ReceivedValidationRequestList = (props: { username: string, credentialId: string }) => {
     const receivedRequestList = getReceivedRequestList();
     const messagePackList = getMessagePackList();
 
