@@ -1,9 +1,8 @@
 import { Alert, Button, Collapse, Flex, Input, type CollapseProps } from "antd"
 import { MessagePackList, ReceivedValidationRequestList, SentValidationRequestList } from "./Message";
-import { getMessagePack } from "./utils";
+import { getMessagePack, postMessagePack } from "./utils";
 import { useCallback, useState } from "react";
 import type { MessagePack } from "@repo/shared";
-import { getMessagePackStorageKey, STORAGE_KEY_MESSAGE_PACKS_LIST } from "./constants";
 
 
 
@@ -11,11 +10,7 @@ const signMessageToMessagePack = async (message: string, credentialId: string, m
     const timestamp = new Date().toISOString();
     const nonce = crypto.randomUUID();
     const messagePack = await getMessagePack(message, timestamp, nonce, credentialId);
-    const currentPacks = JSON.parse(localStorage.getItem(STORAGE_KEY_MESSAGE_PACKS_LIST) ?? "[]") as string[];
-    currentPacks.push(memo.length > 0 ? memo : 'UNKNOWN');
-    const index = currentPacks.length - 1;
-    localStorage.setItem(STORAGE_KEY_MESSAGE_PACKS_LIST, JSON.stringify(currentPacks));
-    localStorage.setItem(getMessagePackStorageKey(index), JSON.stringify(messagePack));
+    postMessagePack(JSON.stringify(messagePack), credentialId, memo);
     return messagePack;
 }
 
@@ -70,7 +65,7 @@ const getItems = (props: {
         {
             key: 4,
             label: "Sent Validation Request List",
-            children: <SentValidationRequestList />,
+            children: <SentValidationRequestList username={props.username} />,
         }
     ]
 }

@@ -476,67 +476,19 @@ app.post<{ Body: CreateMessagePackRequest }>(
       },
       body: {
         type: "object",
-        required: ["messagePack", "owner"],
+        required: ["messagePack", "memo", "credentialId"],
         properties: {
           messagePack: {
-            type: "object",
-            required: ["meta", "message", "signature", "proof"],
-            properties: {
-              meta: {
-                type: "object",
-                required: ["version", "hash_algorithm", "curve"],
-                properties: {
-                  version: { type: "string" },
-                  hash_algorithm: { type: "string" },
-                  curve: { type: "string" },
-                },
-              },
-              message: {
-                type: "object",
-                required: ["payload", "nonce", "timestamp"],
-                properties: {
-                  payload: { type: "string" },
-                  nonce: { type: "string" },
-                  timestamp: { type: "string", format: "date-time" },
-                },
-              },
-              signature: {
-                type: "object",
-                required: ["c0", "r", "I", "ring"],
-                properties: {
-                  c0: { type: "string" },
-                  r: {
-                    type: "array",
-                    items: { type: "string" },
-                  },
-                  I: { type: "string" },
-                  ring: {
-                    type: "array",
-                    items: { type: "string" },
-                  },
-                },
-              },
-              proof: {
-                type: "object",
-                required: ["gcm", "inner_hash"],
-                properties: {
-                  gcm: {
-                    type: "object",
-                    required: ["ciphertext", "iv", "tag"],
-                    properties: {
-                      ciphertext: { type: "string" },
-                      iv: { type: "string" },
-                      tag: { type: "string" },
-                    },
-                  },
-                  inner_hash: { type: "string" },
-                },
-              },
-            },
-          },
-          owner: {
             type: "string",
-            description: "Username of the message pack owner",
+            description: "Serialized message pack payload",
+          },
+          memo: {
+            type: "string",
+            description: "Memo for this message pack",
+          },
+          credentialId: {
+            type: "string",
+            description: "Credential ID associated with this message pack",
           },
         },
       },
@@ -574,8 +526,17 @@ app.post<{ Body: CreateMessagePackRequest }>(
     const verifyResult = await verifySessionToken(pool, request, reply);
     if (verifyResult !== undefined) return verifyResult;
 
+    const owner = request.user?.handle;
+    if (!owner) {
+      return reply.code(401).send({
+        success: false,
+        error: "Invalid session data",
+      });
+    }
+
     const result = await messagePackServices.createMessagePack(
       request.body as CreateMessagePackRequest,
+      owner,
     );
     return reply.code(result.success ? 200 : 400).send(result);
   },
@@ -621,7 +582,9 @@ app.get<{ Params: { id: string } }>(
               type: "object",
               properties: {
                 id: { type: "string" },
-                content: { type: "string" },
+                messagePack: { type: "string" },
+                memo: { type: "string" },
+                credentialId: { type: "string" },
                 owner: { type: "string" },
                 timestamp: { type: "string" },
               },
@@ -701,7 +664,9 @@ app.get<{ Params: { username: string } }>(
                 type: "object",
                 properties: {
                   id: { type: "string" },
-                  content: { type: "string" },
+                  messagePack: { type: "string" },
+                  memo: { type: "string" },
+                  credentialId: { type: "string" },
                   owner: { type: "string" },
                   timestamp: { type: "string" },
                 },

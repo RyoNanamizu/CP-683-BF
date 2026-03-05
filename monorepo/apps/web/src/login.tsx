@@ -135,7 +135,7 @@ const fetchProfile = (setCurrentUser: React.Dispatch<React.SetStateAction<string
         if (res.ok) {
             const profile = await res.json();
             if (profile.success) {
-                setCurrentUser(profile.handle);
+                setCurrentUser(profile.username);
                 setCurrentCredentialId(profile.credentialId);
             }
         }
@@ -148,7 +148,7 @@ const clearSession = () => {
 
 
 function Login() {
-    const [username, setUsername] = useState("");
+    const [usernameInputText, setUsernameInputText] = useState("");
     const [currentUser, setCurrentUser] = useState<string | null>(null);
     const [messageApi, contextHolder] = message.useMessage();
     const getChallengeWithMessage = useCallback((username: string) => getChallenge(setCurrentUser)(messageApi)(username), [messageApi]);
@@ -172,8 +172,8 @@ function Login() {
             {contextHolder}
             <h1>Login</h1>
             <Space.Compact style={{ width: '100%' }}>
-                <Input placeholder="User Name" value={username} onChange={e => setUsername(e.target.value)} />
-                <Button type="primary" onClick={() => getChallengeWithMessage(username)}>Login</Button>
+                <Input placeholder="User Name" value={usernameInputText} onChange={e => setUsernameInputText(e.target.value)} />
+                <Button type="primary" onClick={() => getChallengeWithMessage(usernameInputText)}>Login</Button>
             </Space.Compact>
         </Flex>
     ) : (

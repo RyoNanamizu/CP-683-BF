@@ -1,4 +1,4 @@
-import { base64urlToArrayBuffer, generateKeyPair, fromBufferSource, generateLRSWithoutFakeKeys, toBytes, hexToBytes, generateLRSFromRawMessageWithoutFakeKeys, type MessagePack, uint8ArrayToBase64, fetchChallenge, type ErrorResponse, type LoginChallenge, verifyLRSFromRawMessage, bytesToLRS, LRSToBytes, bytesToRawLRS } from "@repo/shared";
+import { base64urlToArrayBuffer, generateKeyPair, fromBufferSource, generateLRSWithoutFakeKeys, toBytes, hexToBytes, generateLRSFromRawMessageWithoutFakeKeys, type MessagePack, uint8ArrayToBase64, fetchChallenge, type ErrorResponse, type LoginChallenge, verifyLRSFromRawMessage, bytesToLRS, LRSToBytes, bytesToRawLRS, SESSION_TOKEN_KEY } from "@repo/shared";
 const SHA256HASH_SIZE = 32;
 
 export const getCredentialIds = async (username: string): Promise<string[]> => {
@@ -182,4 +182,69 @@ export const getProofForReceiver = async (messagePack: MessagePack, credentialId
     }))
     const result: ArrayBuffer | null = results.find(res => res !== null) ?? null;
     return result;
+}
+
+export type PostMessagePackResponse = {
+    success: boolean;
+    error?: string;
+    id?: string;
+    timestamp?: string;
+}
+
+
+export const postMessagePack = async (message: string, credentialId: string, memo: string): Promise<PostMessagePackResponse> => {
+    const response = await fetch("/api/message", {
+        method: "POST",
+        headers: getAuthedHeader({ "Content-Type": "application/json" }),
+        body: JSON.stringify({
+            "messagePack": message,
+            "memo": memo,
+            "credentialId": credentialId
+        }),
+    })
+    if (!response.ok || response.status >= 300) {
+        const errorData = await response.json() as ErrorResponse;
+        throw new Error(`Failed to post message pack: ${errorData.error}`);
+    }
+    const responseData = await response.json() as { id: string, timestamp: string };
+    return {
+        success: true,
+        id: responseData.id,
+        timestamp: responseData.timestamp,
+    }
+}
+
+
+export const getAuthedHeader = (headers: Record<string, string>) => {
+    const sessionToken = sessionStorage.getItem(SESSION_TOKEN_KEY);
+    if (!sessionToken) throw new Error("No session token found");
+    Object.defineProperty(headers, "x-session-token", {
+        value: `${sessionStorage.getItem(SESSION_TOKEN_KEY)}`,
+        enumerable: true,
+    });
+    return headers;
+}
+
+export type TypeGetMessagePackListResponseTypeItem = {
+    "id": string,
+    "messagePack": string,
+    "memo": string,
+    "credentialId": string,
+    "owner": string,
+    "timestamp": string
+}
+
+export const getMessagePackListFromBackend = async (username: string): Promise<{
+    messagePacks: TypeGetMessagePackListResponseTypeItem[];
+    count: number;
+}> => {
+    const response = await fetch("/api/message/list/by_username/" + encodeURIComponent(username), {
+        headers: getAuthedHeader({ "Content-Type": "application/json" }),
+    });
+    if (!response.ok || response.status >= 300) {
+        const errorData = await response.json() as ErrorResponse;
+        throw new Error(`Failed to fetch message pack list: ${errorData.error}`);
+    }
+    const responseData = await response.json() as { messagePacks: TypeGetMessagePackListResponseTypeItem[], count: number };
+    return responseData;
 }

@@ -4,61 +4,13 @@
  */
 
 /**
- * Metadata for the message pack
- */
-export interface MessagePackMeta {
-  version: string;
-  hash_algorithm: string;
-  curve: string;
-}
-
-/**
- * Message component containing the actual content
- */
-export interface MessagePackMessage {
-  payload: string;
-  nonce: string;
-  timestamp: string; // ISO8601 format
-}
-
-/**
- * Ring signature component for anonymous authentication
- */
-export interface MessagePackSignature {
-  c0: string;
-  r: string[];
-  I: string;
-  ring: string[];
-}
-
-/**
- * Proof component with encrypted data
- */
-export interface MessagePackProof {
-  gcm: {
-    ciphertext: string;
-    iv: string;
-    tag: string;
-  };
-  inner_hash: string;
-}
-
-/**
- * Complete Message Pack structure
- */
-export interface MessagePack {
-  meta: MessagePackMeta;
-  message: MessagePackMessage;
-  signature: MessagePackSignature;
-  proof: MessagePackProof;
-}
-
-/**
  * Database record for message pack
  */
 export interface MessagePackRecord {
   id: string;
-  content: string; // JSON string of MessagePack
+  messagePack: string;
+  memo: string;
+  credentialId: string;
   owner: string; // username
   timestamp: string; // ISO8601
 }
@@ -67,8 +19,9 @@ export interface MessagePackRecord {
  * Request to create a new message pack
  */
 export interface CreateMessagePackRequest {
-  messagePack: MessagePack;
-  owner: string;
+  messagePack: string;
+  memo: string;
+  credentialId: string;
 }
 
 /**

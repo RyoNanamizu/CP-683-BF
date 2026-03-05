@@ -1,8 +1,8 @@
 // import type { MessagePack } from "@repo/shared";
 import { Splitter, Flex, List, Descriptions, type DescriptionsProps, Button, Badge } from "antd";
-import { getMessagePackStorageKey, getValidationResultStorageKey, STORAGE_KEY_MESSAGE_PACKS_LIST, STORAGE_KEY_RECEIVED_REQUESTS_LIST, STORAGE_KEY_SENT_REQUESTS_LIST } from "./constants";
+import { getMessagePackStorageKey, getValidationResultStorageKey, STORAGE_KEY_RECEIVED_REQUESTS_LIST, STORAGE_KEY_SENT_REQUESTS_LIST } from "./constants";
 import { useEffect, useState } from "react";
-import { getProofForReceiver, ValidateMessagePack } from "./utils";
+import { getMessagePackListFromBackend, getProofForReceiver, ValidateMessagePack, type TypeGetMessagePackListResponseTypeItem } from "./utils";
 import { base64urlToArrayBuffer, bytesToRawLRS, LRSFromRawLRS, uint8ArrayEquals, uint8ArrayToBase64, verifyLRS, type MessagePack } from "@repo/shared";
 import type { PresetStatusColorType } from "antd/es/_util/colors";
 
@@ -20,8 +20,8 @@ const Desc: React.FC<Readonly<{ text?: string | number }>> = (props) => (
 }
  */
 
-const getMessagePackList = () => {
-    const messagePacksList = JSON.parse(localStorage.getItem(STORAGE_KEY_MESSAGE_PACKS_LIST) ?? "[]") as string[];
+const getMessagePackList = async (username: string) => {
+    const messagePacksList = (await getMessagePackListFromBackend(username)).messagePacks
     return messagePacksList;
 }
 
@@ -62,14 +62,14 @@ const getProofValidationResult = async (credentialId: string, messagePack: Messa
     return result;
 }
 
-const sendValidationRequest = (index: number) => {
+const sendValidationRequest = async (index: number, username: string) => {
     const sentRequestList = getRequestList();
-    const messagePackList = getMessagePackList();
-    sentRequestList.length = messagePackList.length;
+    const messagePackList = await getMessagePackListFromBackend(username);
+    sentRequestList.length = messagePackList.messagePacks.length;
     sentRequestList[index] = "Pending";
     localStorage.setItem(STORAGE_KEY_SENT_REQUESTS_LIST, JSON.stringify(sentRequestList));
     const receivedRequestList = getReceivedRequestList();
-    receivedRequestList.length = messagePackList.length;
+    receivedRequestList.length = messagePackList.messagePacks.length;
     receivedRequestList[index] = "Pending";
     localStorage.setItem(STORAGE_KEY_RECEIVED_REQUESTS_LIST, JSON.stringify(receivedRequestList));
 }
@@ -116,7 +116,7 @@ const MessagePackDetail = (props: { index: number, memo: string, username: strin
                 variant="solid"
                 onClick={async () => {
                     try {
-                        await sendValidationRequest(props.index);
+                        await sendValidationRequest(props.index, props.username);
                     } catch (error) {
                         console.error("Failed to send validation request:", error);
                     }
@@ -129,30 +129,45 @@ const MessagePackDetail = (props: { index: number, memo: string, username: strin
     </Flex>
 }
 
+const mappingMessageMapList = (messagePackList: TypeGetMessagePackListResponseTypeItem[]): string[] => messagePackList.map(item => item.memo.length > 0 ? item.memo : "UNKNOWN");
+
+const fetchMessagePackList = (setMessagePackList: React.Dispatch<React.SetStateAction<TypeGetMessagePackListResponseTypeItem[]>>) => async (username: string) => {
+    const messagePackList = await getMessagePackList(username);
+    setMessagePackList(messagePackList);
+}
+
 export const MessagePackList = (props: { username: string, credentialId: string }) => {
     const [currentIndex, setCurrentIndex] = useState<number | null>(null);
-    const messagePackList = getMessagePackList();
+    const [messagePackList, setMessagePackList] = useState<TypeGetMessagePackListResponseTypeItem[]>([]);
+    useEffect(() => {
+        fetchMessagePackList(setMessagePackList)(props.username);
+    }, [])
+
+    const messagePackListForDisplay = mappingMessageMapList(messagePackList);
 
     return <Flex vertical gap="large" style={{ minHeight: "350px", padding: "16px" }}>
         <Splitter>
             <Splitter.Panel min="20%">
-                <List dataSource={messagePackList} renderItem={(item, index) => <List.Item onClick={() => setCurrentIndex(index)}>{item}</List.Item>} />
+                <List dataSource={messagePackListForDisplay} renderItem={(item, index) => <List.Item onClick={() => setCurrentIndex(index)}>{item}</List.Item>} />
             </Splitter.Panel>
             <Splitter.Panel min="20%">
-                {currentIndex !== null && <MessagePackDetail index={currentIndex} memo={messagePackList[currentIndex]} username={props.username} credentialId={props.credentialId} />}
+                {currentIndex !== null && <MessagePackDetail index={currentIndex} memo={messagePackList[currentIndex].memo} username={props.username} credentialId={props.credentialId} />}
             </Splitter.Panel>
         </Splitter >
     </Flex>
 }
 
-export const SentValidationRequestList = () => {
+export const SentValidationRequestList = (props: { username: string }) => {
     const requestList = getRequestList();
-    const messagePackList = getMessagePackList();
+    const [messagePackList, setMessagePackList] = useState<TypeGetMessagePackListResponseTypeItem[]>([]);
+    useEffect(() => {
+        fetchMessagePackList(setMessagePackList)(props.username);
+    }, [])
 
     return <Flex vertical gap="large">
         <List dataSource={requestList} renderItem={(item, index) => <List.Item>
             <Flex justify="space-between" style={{ width: "100%" }}>
-                <Flex>{messagePackList[index]}</Flex>
+                <Flex>{messagePackList[index]?.memo || "UNKNOWN"}</Flex>
                 <Flex gap="middle" align="middle">
                     <Flex>{item !== "Passed" && <Button color="primary" variant="solid" onClick={() => validateProof(index)}>Validate</Button>}</Flex>
                     <Flex><Badge status={stateMapping[item] ?? "default"} text={item} /></Flex>
@@ -238,14 +253,17 @@ const refuseProof = (index: number) => {
 
 export const ReceivedValidationRequestList = (props: { username: string, credentialId: string }) => {
     const receivedRequestList = getReceivedRequestList();
-    const messagePackList = getMessagePackList();
+    const [messagePackList, setMessagePackList] = useState<TypeGetMessagePackListResponseTypeItem[]>([]);
+    useEffect(() => {
+        fetchMessagePackList(setMessagePackList)(props.username);
+    }, [])
 
 
     return <Flex vertical gap="large">
         <List dataSource={receivedRequestList} renderItem={(item, index) => <List.Item>
             <Flex justify="space-between" style={{ width: "100%" }}>
                 <Flex gap="large">
-                    <Flex>{messagePackList[index]}</Flex>
+                    <Flex>{messagePackList[index]?.memo || "UNKNOWN"}</Flex>
                 </Flex>
                 <Flex gap="middle" align="center">
                     {item !== "Passed" && item !== "Refused" && <Button color="primary" variant="solid" onClick={() => decryptProof(index, props.username)}>Validate</Button>}
