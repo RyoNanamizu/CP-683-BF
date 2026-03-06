@@ -2,7 +2,7 @@
 
 /**
  * Database setup script
- * Creates the CP683 database and messages table
+ * Creates the CP683 database
  */
 
 import pg from "pg";
@@ -45,32 +45,6 @@ async function setupDatabase() {
       password: process.env.PGPASSWORD || "postgres",
       database: "CP683",
     });
-
-    console.log("📋 Creating messages table...");
-    await cp683Pool.query(`
-      CREATE TABLE IF NOT EXISTS messages (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        message TEXT NOT NULL,
-        ring_public_keys BYTEA[] NOT NULL,
-        outer_signature BYTEA NOT NULL,
-        encrypted_proof BYTEA NULL,
-        created_at TIMESTAMP NOT NULL DEFAULT now()
-      );
-    `);
-    console.log("✅ Messages table created");
-
-    // Create index
-    console.log("📇 Creating index on created_at...");
-    await cp683Pool.query(
-      "CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at);",
-    );
-    console.log("✅ Index created");
-
-    // Verify table
-    const result = await cp683Pool.query("SELECT COUNT(*) FROM messages;");
-    console.log(
-      `✅ Table is accessible (${result.rows[0].count} existing records)\n`,
-    );
 
     await cp683Pool.end();
     console.log("✅ Database setup complete!\n");
