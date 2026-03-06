@@ -248,3 +248,18 @@ export const getMessagePackListFromBackend = async (username: string): Promise<{
     const responseData = await response.json() as { messagePacks: TypeGetMessagePackListResponseTypeItem[], count: number };
     return responseData;
 }
+
+export const transferOwnershipForBackend = async (id: string, newOwner: string): Promise<boolean> => {
+    const response = await fetch(`/api/message/by_id/${id}/owner`, {
+        method: "PUT",
+        headers: getAuthedHeader({ "Content-Type": "application/json" }),
+        body: JSON.stringify({
+            "newOwner": newOwner
+        }),
+    });
+    if (!response.ok || response.status >= 300) {
+        const errorData = await response.json() as ErrorResponse;
+        throw new Error(`Failed to transfer ownership: ${errorData.error}`);
+    }
+    return true;
+}
