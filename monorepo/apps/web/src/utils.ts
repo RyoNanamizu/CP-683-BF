@@ -263,3 +263,91 @@ export const transferOwnershipForBackend = async (id: string, newOwner: string):
     }
     return true;
 }
+
+export type FetchSentRequestsListResponseItem = {
+    id: string;
+    messagePackId: string;
+    requester: string;
+    responder: string;
+    status: string;
+    responsePayload: string | null;
+    createdAt: string;
+    updatedAt: string;
+};
+
+export type FetchSentRequestsListResponse = {
+    success: boolean;
+    requests: FetchSentRequestsListResponseItem[];
+    count: number;
+};
+
+export const getSentRequestsList = async () => {
+    const response = await fetch("/api/validation-requests/sent", {
+        headers: getAuthedHeader({}),
+    });
+    if (!response.ok || response.status >= 300) {
+        const errorData = await response.json() as ErrorResponse;
+        throw new Error(`Failed to fetch sent requests list: ${errorData.error}`);
+    }
+    const responseData = await response.json() as FetchSentRequestsListResponse;
+    return responseData;
+}
+
+export const getReceivedRequestsList = async () => {
+    const response = await fetch("/api/validation-requests/received", {
+        headers: getAuthedHeader({}),
+    });
+    if (!response.ok || response.status >= 300) {
+        const errorData = await response.json() as ErrorResponse;
+        throw new Error(`Failed to fetch received requests list: ${errorData.error}`);
+    }
+    const responseData = await response.json() as FetchSentRequestsListResponse;
+    return responseData;
+}
+
+export const postValidationRequest = async (messagePackId: string, responder: string): Promise<boolean> => {
+    const response = await fetch("/api/validation-requests", {
+        method: "POST",
+        headers: getAuthedHeader({ "Content-Type": "application/json" }),
+        body: JSON.stringify({
+            messagePackId,
+            responder,
+        }),
+    });
+    if (!response.ok || response.status >= 300) {
+        const errorData = await response.json() as ErrorResponse;
+        throw new Error(`Failed to post validation request: ${errorData.error}`);
+    }
+    return true;
+}
+
+export const putSentValidationRequest = async (requestId: string, action: 'respond' | 'refuse', payload?: string): Promise<boolean> => {
+    const response = await fetch(`/api/validation-requests/${requestId}/respond`, {
+        method: "PUT",
+        headers: getAuthedHeader({ "Content-Type": "application/json" }),
+        body: JSON.stringify({
+            action,
+            responsePayload: payload,
+        }),
+    });
+    if (!response.ok || response.status >= 300) {
+        const errorData = await response.json() as ErrorResponse;
+        throw new Error(`Failed to update sent validation request: ${errorData.error}`);
+    }
+    return true;
+}
+
+export const putReceivedValidationRequest = async (requestId: string, result: 'Passed' | 'Failed' | 'Error'): Promise<boolean> => {
+    const response = await fetch(`/api/validation-requests/${requestId}/result`, {
+        method: "PUT",
+        headers: getAuthedHeader({ "Content-Type": "application/json" }),
+        body: JSON.stringify({
+            result
+        }),
+    });
+    if (!response.ok || response.status >= 300) {
+        const errorData = await response.json() as ErrorResponse;
+        throw new Error(`Failed to update received validation request: ${errorData.error}`);
+    }
+    return true;
+}
