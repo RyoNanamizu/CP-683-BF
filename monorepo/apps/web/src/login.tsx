@@ -1,10 +1,11 @@
 import { base64urlToArrayBuffer, fetchChallenge, PRF_NOT_ENABLED_ERROR, SESSION_TOKEN_KEY, USER_EXISTS_ERROR } from "@repo/shared";
 import "antd/dist/reset.css";
 import { Button, Flex, Input, message, Space } from 'antd';
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { MessageInstance } from "antd/es/message/interface";
 import type { CreateCredentialOptions, LoginChallenge } from "@repo/shared"
 import { SignPanel } from "./Sign";
+import { postMessagePack } from "./utils";
 
 
 
@@ -168,6 +169,38 @@ function Login() {
         fetchProfileWithSetter();
     }, [fetchProfileWithSetter]);
 
+    const hiddenFileRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        hiddenFileRef.current?.addEventListener("change", async (event) => {
+            const file = (event.target as HTMLInputElement).files?.[0];
+            if (!file) return;
+            if (file.type !== "application/json" && !file.name.endsWith('.json')) {
+                new Error("Invalid file type. Please select a JSON file.");
+                return;
+            }
+            try {
+                const text = await file.text();
+                const jsonContent = JSON.parse(text);
+
+                const pack = jsonContent.pack as string;
+                const memo = jsonContent.memo as string;
+                const credentialId = jsonContent.credentialId as string;
+
+                if (!pack || !memo || !credentialId) {
+                    throw new Error("Invalid file format. Missing required fields.");
+                }
+
+                await postMessagePack(credentialId, pack, memo);
+
+
+            } catch (e) {
+                throw e
+            }
+
+        })
+    }, []);
+
     return currentUser === null ? (
         <Flex vertical gap="large">
             {contextHolder}
@@ -183,7 +216,10 @@ function Login() {
             <h1>Welcome, {currentUser}</h1>
             <Flex gap="middle" justify="center">
                 <Button type="primary" onClick={() => { clearSession(); setCurrentUser(null); }}>Logout</Button>
-                <Button type="primary">Import Message Pack</Button>
+                <input accept=".json" type="file" id="hiddenFile" style={{ display: "none" }} ref={hiddenFileRef} />
+                <Button type="primary" onClick={() => {
+                    hiddenFileRef.current?.click();
+                }}>Import Message Pack</Button>
             </Flex>
             {currentCredentialId !== null && <SignPanel username={currentUser} credentialId={currentCredentialId} />}
         </Flex>
