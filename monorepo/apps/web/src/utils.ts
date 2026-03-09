@@ -1,4 +1,4 @@
-import { base64urlToArrayBuffer, generateKeyPair, fromBufferSource, generateLRSWithoutFakeKeys, toBytes, hexToBytes, generateLRSFromRawMessageWithoutFakeKeys, type MessagePack, uint8ArrayToBase64, fetchChallenge, type ErrorResponse, type LoginChallenge, verifyLRSFromRawMessage, bytesToLRS, LRSToBytes, bytesToRawLRS } from "@repo/shared";
+import { base64urlToArrayBuffer, generateKeyPair, fromBufferSource, generateLRSWithoutFakeKeys, toBytes, hexToBytes, generateLRSFromRawMessageWithoutFakeKeys, type MessagePack, uint8ArrayToBase64, fetchChallenge, type ErrorResponse, type LoginChallenge, verifyLRSFromRawMessage, bytesToLRS, LRSToBytes, bytesToRawLRS, SESSION_TOKEN_KEY } from "@repo/shared";
 const SHA256HASH_SIZE = 32;
 
 export const getCredentialIds = async (username: string): Promise<string[]> => {
@@ -184,11 +184,182 @@ export const getProofForReceiver = async (messagePack: MessagePack, credentialId
     return result;
 }
 
-export const getCredentialIdForUser = async (username: string) => {
-    const credentialIds = await getCredentialIds(username);
-    if (credentialIds.length === 0) {
-        throw new Error("No credentials available for signing");
+export type PostMessagePackResponse = {
+    success: boolean;
+    error?: string;
+    id?: string;
+    timestamp?: string;
+}
+
+
+export const postMessagePack = async (message: string, credentialId: string, memo: string): Promise<PostMessagePackResponse> => {
+    const response = await fetch("/api/message", {
+        method: "POST",
+        headers: getAuthedHeader({ "Content-Type": "application/json" }),
+        body: JSON.stringify({
+            "messagePack": message,
+            "memo": memo,
+            "credentialId": credentialId
+        }),
+    })
+    if (!response.ok || response.status >= 300) {
+        const errorData = await response.json() as ErrorResponse;
+        throw new Error(`Failed to post message pack: ${errorData.error}`);
     }
-    const credentialId = credentialIds[0]; // For simplicity, we just use the first credential. In a real app, you would let the user choose.
-    return credentialId;
+    const responseData = await response.json() as { id: string, timestamp: string };
+    return {
+        success: true,
+        id: responseData.id,
+        timestamp: responseData.timestamp,
+    }
+}
+
+
+export const getAuthedHeader = (headers: Record<string, string>) => {
+    const sessionToken = sessionStorage.getItem(SESSION_TOKEN_KEY);
+    if (!sessionToken) throw new Error("No session token found");
+    Object.defineProperty(headers, "x-session-token", {
+        value: `${sessionStorage.getItem(SESSION_TOKEN_KEY)}`,
+        enumerable: true,
+    });
+    return headers;
+}
+
+export type TypeGetMessagePackListResponseTypeItem = {
+    "id": string,
+    "messagePack": string,
+    "memo": string,
+    "credentialId": string,
+    "owner": string,
+    "timestamp": string
+}
+
+export const getMessagePackListFromBackend = async (username: string): Promise<{
+    messagePacks: TypeGetMessagePackListResponseTypeItem[];
+    count: number;
+}> => {
+    const response = await fetch("/api/message/list/by_username/" + encodeURIComponent(username), {
+        headers: getAuthedHeader({ "Content-Type": "application/json" }),
+    });
+    if (!response.ok || response.status >= 300) {
+        const errorData = await response.json() as ErrorResponse;
+        throw new Error(`Failed to fetch message pack list: ${errorData.error}`);
+    }
+    const responseData = await response.json() as { messagePacks: TypeGetMessagePackListResponseTypeItem[], count: number };
+    return responseData;
+}
+
+export const transferOwnershipForBackend = async (id: string, newOwner: string): Promise<boolean> => {
+    const response = await fetch(`/api/message/by_id/${id}/owner`, {
+        method: "PUT",
+        headers: getAuthedHeader({ "Content-Type": "application/json" }),
+        body: JSON.stringify({
+            "newOwner": newOwner
+        }),
+    });
+    if (!response.ok || response.status >= 300) {
+        const errorData = await response.json() as ErrorResponse;
+        throw new Error(`Failed to transfer ownership: ${errorData.error}`);
+    }
+    return true;
+}
+
+export type FetchSentRequestsListResponseItem = {
+    id: string;
+    messagePackId: string;
+    requester: string;
+    responder: string;
+    status: string;
+    responsePayload: string | null;
+    createdAt: string;
+    updatedAt: string;
+};
+
+export type FetchSentRequestsListResponse = {
+    success: boolean;
+    requests: FetchSentRequestsListResponseItem[];
+    count: number;
+};
+
+export const getSentRequestsList = async () => {
+    const response = await fetch("/api/validation-requests/sent", {
+        headers: getAuthedHeader({}),
+    });
+    if (!response.ok || response.status >= 300) {
+        const errorData = await response.json() as ErrorResponse;
+        throw new Error(`Failed to fetch sent requests list: ${errorData.error}`);
+    }
+    const responseData = await response.json() as FetchSentRequestsListResponse;
+    return responseData;
+}
+
+export const getReceivedRequestsList = async () => {
+    const response = await fetch("/api/validation-requests/received", {
+        headers: getAuthedHeader({}),
+    });
+    if (!response.ok || response.status >= 300) {
+        const errorData = await response.json() as ErrorResponse;
+        throw new Error(`Failed to fetch received requests list: ${errorData.error}`);
+    }
+    const responseData = await response.json() as FetchSentRequestsListResponse;
+    return responseData;
+}
+
+export const postValidationRequest = async (messagePackId: string, responder: string): Promise<boolean> => {
+    const response = await fetch("/api/validation-requests", {
+        method: "POST",
+        headers: getAuthedHeader({ "Content-Type": "application/json" }),
+        body: JSON.stringify({
+            messagePackId,
+            responder,
+        }),
+    });
+    if (!response.ok || response.status >= 300) {
+        const errorData = await response.json() as ErrorResponse;
+        throw new Error(`Failed to post validation request: ${errorData.error}`);
+    }
+    return true;
+}
+
+export const putSentValidationRequest = async (requestId: string, action: 'respond' | 'refuse', payload?: string): Promise<boolean> => {
+    const response = await fetch(`/api/validation-requests/${requestId}/respond`, {
+        method: "PUT",
+        headers: getAuthedHeader({ "Content-Type": "application/json" }),
+        body: JSON.stringify({
+            action,
+            responsePayload: payload,
+        }),
+    });
+    if (!response.ok || response.status >= 300) {
+        const errorData = await response.json() as ErrorResponse;
+        throw new Error(`Failed to update sent validation request: ${errorData.error}`);
+    }
+    return true;
+}
+
+export const putReceivedValidationRequest = async (requestId: string, result: 'Passed' | 'Failed' | 'Error'): Promise<boolean> => {
+    const response = await fetch(`/api/validation-requests/${requestId}/result`, {
+        method: "PUT",
+        headers: getAuthedHeader({ "Content-Type": "application/json" }),
+        body: JSON.stringify({
+            result
+        }),
+    });
+    if (!response.ok || response.status >= 300) {
+        const errorData = await response.json() as ErrorResponse;
+        throw new Error(`Failed to update received validation request: ${errorData.error}`);
+    }
+    return true;
+}
+
+export const getMessagePackById = async (id: string) => {
+    const response = await fetch("/api/message/by_id/" + encodeURIComponent(id), {
+        headers: getAuthedHeader({ "Content-Type": "application/json" }),
+    });
+    if (!response.ok || response.status >= 300) {
+        const errorData = await response.json() as ErrorResponse;
+        throw new Error(`Failed to fetch message pack by id: ${errorData.error}`);
+    }
+    const responseData = await response.json() as { messagePack: TypeGetMessagePackListResponseTypeItem };
+    return responseData;
 }

@@ -5,7 +5,6 @@ import { useCallback, useEffect, useState } from "react";
 import type { MessageInstance } from "antd/es/message/interface";
 import type { CreateCredentialOptions, LoginChallenge } from "@repo/shared"
 import { SignPanel } from "./Sign";
-import { STORAGE_KEY_CREDENTIAL_ID } from "./constants";
 
 
 
@@ -97,7 +96,7 @@ const handleLogin = async (loginData: LoginChallenge) => {
     };
 };
 
-const getChallenge = (setCurrentUser: React.Dispatch<React.SetStateAction<string | null>>) => (messageApi: MessageInstance) => async (username: string) => {
+const getChallenge = (setCurrentUser: React.Dispatch<React.SetStateAction<string | null>>, setCurrentCredentialId: React.Dispatch<React.SetStateAction<string | null>>) => (messageApi: MessageInstance) => async (username: string) => {
     try {
         const data = await fetchChallenge(username, "/api/register/challenge");
 
@@ -116,9 +115,9 @@ const getChallenge = (setCurrentUser: React.Dispatch<React.SetStateAction<string
         });
 
         setCurrentUser(loginResult.handle)
+        setCurrentCredentialId(credentialId);
 
         sessionStorage.setItem(SESSION_TOKEN_KEY, loginResult.sessionToken);
-        localStorage.setItem(STORAGE_KEY_CREDENTIAL_ID, credentialId);
     } catch (error) {
         messageApi.open({
             type: "error",
@@ -127,17 +126,18 @@ const getChallenge = (setCurrentUser: React.Dispatch<React.SetStateAction<string
     }
 };
 
-const fetchProfile = (setCurrentUser: React.Dispatch<React.SetStateAction<string | null>>) => async () => {
+const fetchProfile = (setCurrentUser: React.Dispatch<React.SetStateAction<string | null>>) => (setCurrentCredentialId: React.Dispatch<React.SetStateAction<string | null>>) => async () => {
     const sessionToken = sessionStorage.getItem(SESSION_TOKEN_KEY);
     if (sessionToken) {
-        const res = await fetch("/api/api/user/profile", {
+        const res = await fetch("/api/session", {
             headers: { "x-session-token": `${sessionToken}` },
         });
 
         if (res.ok) {
             const profile = await res.json();
             if (profile.success) {
-                setCurrentUser(profile.handle);
+                setCurrentUser(profile.username);
+                setCurrentCredentialId(profile.credentialId);
             }
         }
     }
@@ -145,16 +145,24 @@ const fetchProfile = (setCurrentUser: React.Dispatch<React.SetStateAction<string
 
 const clearSession = () => {
     sessionStorage.removeItem(SESSION_TOKEN_KEY);
-    localStorage.removeItem(STORAGE_KEY_CREDENTIAL_ID);
 }
 
 
 function Login() {
-    const [username, setUsername] = useState("");
+    const [usernameInputText, setUsernameInputText] = useState("");
     const [currentUser, setCurrentUser] = useState<string | null>(null);
     const [messageApi, contextHolder] = message.useMessage();
-    const getChallengeWithMessage = useCallback((username: string) => getChallenge(setCurrentUser)(messageApi)(username), [messageApi]);
-    const fetchProfileWithSetter = useCallback(() => fetchProfile(setCurrentUser)(), []);
+    const getChallengeWithMessage = useCallback((username: string) => getChallenge(setCurrentUser, setCurrentCredentialId)(messageApi)(username), [messageApi]);
+    const fetchProfileWithSetter = useCallback(() => fetchProfile(setCurrentUser)(setCurrentCredentialId)(), []);
+    const [currentCredentialId, setCurrentCredentialId] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (sessionStorage.getItem(SESSION_TOKEN_KEY)) {
+            fetchProfileWithSetter();
+        } else {
+            setCurrentUser(null);
+        }
+    }, []);
 
     useEffect(() => {
         fetchProfileWithSetter();
@@ -165,8 +173,8 @@ function Login() {
             {contextHolder}
             <h1>Login</h1>
             <Space.Compact style={{ width: '100%' }}>
-                <Input placeholder="User Name" value={username} onChange={e => setUsername(e.target.value)} />
-                <Button type="primary" onClick={() => getChallengeWithMessage(username)}>Login</Button>
+                <Input placeholder="User Name" value={usernameInputText} onChange={e => setUsernameInputText(e.target.value)} />
+                <Button type="primary" onClick={() => getChallengeWithMessage(usernameInputText)}>Login</Button>
             </Space.Compact>
         </Flex>
     ) : (
@@ -177,7 +185,7 @@ function Login() {
                 <Button type="primary" onClick={() => { clearSession(); setCurrentUser(null); }}>Logout</Button>
                 <Button type="primary">Import Message Pack</Button>
             </Flex>
-            <SignPanel username={currentUser} />
+            {currentCredentialId !== null && <SignPanel username={currentUser} credentialId={currentCredentialId} />}
         </Flex>
     );
 }

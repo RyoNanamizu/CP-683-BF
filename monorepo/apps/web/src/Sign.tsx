@@ -1,32 +1,28 @@
 import { Alert, Button, Collapse, Flex, Input, type CollapseProps } from "antd"
 import { MessagePackList, ReceivedValidationRequestList, SentValidationRequestList } from "./Message";
-import { getCredentialIdForUser, getMessagePack } from "./utils";
-import { useCallback, useState } from "react";
+import { getMessagePack, getMessagePackListFromBackend, getReceivedRequestsList, getSentRequestsList, postMessagePack, type FetchSentRequestsListResponseItem, type TypeGetMessagePackListResponseTypeItem } from "./utils";
+import { useCallback, useEffect, useState } from "react";
 import type { MessagePack } from "@repo/shared";
-import { getMessagePackStorageKey, STORAGE_KEY_CREDENTIAL_ID, STORAGE_KEY_MESSAGE_PACKS_LIST } from "./constants";
 
 
 
-const signMessageToMessagePack = async (message: string, username: string, memo: string): Promise<MessagePack> => {
-    const credentialId = localStorage.getItem(STORAGE_KEY_CREDENTIAL_ID) ?? (await getCredentialIdForUser(username));
-    localStorage.setItem(STORAGE_KEY_CREDENTIAL_ID, credentialId);
+const signMessageToMessagePack = async (message: string, credentialId: string, memo: string): Promise<MessagePack> => {
     const timestamp = new Date().toISOString();
     const nonce = crypto.randomUUID();
     const messagePack = await getMessagePack(message, timestamp, nonce, credentialId);
-    const currentPacks = JSON.parse(localStorage.getItem(STORAGE_KEY_MESSAGE_PACKS_LIST) ?? "[]") as string[];
-    currentPacks.push(memo.length > 0 ? memo : 'UNKNOWN');
-    const index = currentPacks.length - 1;
-    localStorage.setItem(STORAGE_KEY_MESSAGE_PACKS_LIST, JSON.stringify(currentPacks));
-    localStorage.setItem(getMessagePackStorageKey(index), JSON.stringify(messagePack));
+    postMessagePack(JSON.stringify(messagePack), credentialId, memo);
     return messagePack;
 }
 
 
-const SignMessage = (props: Props) => {
+const SignMessage = (props: {
+    username: string
+    credentialId: string
+}) => {
     const [message, setMessage] = useState<string>("");
     const [memo, setMemo] = useState<string>("");
 
-    const signMessage = useCallback(() => signMessageToMessagePack(message, props.username, memo), [message, memo, props.username]);
+    const signMessage = useCallback(() => signMessageToMessagePack(message, props.credentialId, memo), [message, memo, props.credentialId]);
 
     return <Flex vertical gap="middle">
         <Flex>
@@ -43,40 +39,121 @@ const SignMessage = (props: Props) => {
     </Flex >
 }
 
+type ItemProps = {
+    username: string
+    credentialId: string
+    onSentConfirmed: () => void
+    onConfirmed: () => void
+    onReceivedConfirmed: () => void
+    receivedRequestList: FetchSentRequestsListResponseItem[],
+    requestList: FetchSentRequestsListResponseItem[],
+    messagePackList: TypeGetMessagePackListResponseTypeItem[]
+}
 
 
 
-const getItems = (props: Props): CollapseProps['items'] => {
+const getItems = (props: ItemProps): CollapseProps['items'] => {
     return [
         {
             key: 1,
             label: "Sign a new Message",
-            children: <SignMessage username={props.username} />,
+            children: <SignMessage username={props.username} credentialId={props.credentialId} />,
         },
         {
             key: 2,
             label: "Message Pack List",
-            children: <MessagePackList username={props.username} />,
+            children: <MessagePackList
+                onConfirmed={props.onConfirmed}
+                username={props.username}
+                credentialId={props.credentialId}
+                onSentConfirmed={props.onSentConfirmed}
+                messagePackList={props.messagePackList} />,
         },
         {
             key: 3,
             label: "Received Validation Request List",
-            children: <ReceivedValidationRequestList username={props.username} />,
+            children: <ReceivedValidationRequestList
+                receivedRequestList={props.receivedRequestList}
+                username={props.username}
+                credentialId={props.credentialId}
+                onConfirmed={props.onReceivedConfirmed}
+                messagePackList={props.messagePackList} />,
         },
         {
             key: 4,
             label: "Sent Validation Request List",
-            children: <SentValidationRequestList />,
+            children: <SentValidationRequestList onConfirmed={props.onSentConfirmed}
+                username={props.username} messagePackList={props.messagePackList} requestList={props.requestList} />,
         }
     ]
 }
 
-type Props = {
-    username: string
+const getMessagePackList = async (username: string) => {
+    const messagePacksList = (await getMessagePackListFromBackend(username)).messagePacks
+    return messagePacksList;
 }
 
-export const SignPanel = (props: Props) => {
-    const calItems = useCallback((props: Props) => getItems(props), [props]);
+const getRequestList = async () => (await getSentRequestsList()).requests;
+
+const fetchMessagePackList = (setMessagePackList: React.Dispatch<React.SetStateAction<TypeGetMessagePackListResponseTypeItem[]>>) => async (username: string) => {
+    const messagePackList = await getMessagePackList(username);
+    setMessagePackList(messagePackList);
+}
+
+const fetchRequestList = async (setRequestList: React.Dispatch<React.SetStateAction<FetchSentRequestsListResponseItem[]>>) => {
+    const requestList = await getRequestList();
+    setRequestList(requestList);
+}
+
+const getReceivedRequestList = async (setReceivedRequestList: React.Dispatch<React.SetStateAction<FetchSentRequestsListResponseItem[]>>) => {
+    const messagePacksList = (await getReceivedRequestsList()).requests;
+    setReceivedRequestList(messagePacksList);
+}
+
+
+
+export const SignPanel = (props: {
+    username: string
+    credentialId: string
+}) => {
+    const [messagePackList, setMessagePackList] = useState<TypeGetMessagePackListResponseTypeItem[]>([]);
+    const [requestList, setRequestList] = useState<FetchSentRequestsListResponseItem[]>([]);
+    const [receivedRequestList, setReceivedRequestList] = useState<FetchSentRequestsListResponseItem[]>([]);
+    useEffect(() => {
+        fetchMessagePackList(setMessagePackList)(props.username);
+    }, [props.username])
+    useEffect(() => {
+        fetchRequestList(setRequestList);
+    }, [])
+    useEffect(() => {
+        getReceivedRequestList(setReceivedRequestList);
+    }, [])
+
+    const onSentConfirmed = () => {
+        fetchRequestList(setRequestList);
+    }
+
+    const onConfirmed = () => {
+        fetchMessagePackList(setMessagePackList)(props.username);
+    }
+
+    const onReceivedConfirmed = () => {
+        getReceivedRequestList(setReceivedRequestList);
+    }
+
+
+    const calItems = useCallback((props: {
+        username: string
+        credentialId: string
+    }) => getItems({
+        ...props,
+        requestList,
+        messagePackList,
+        receivedRequestList,
+        onSentConfirmed,
+        onConfirmed,
+        onReceivedConfirmed
+    }), [props, requestList, messagePackList, onSentConfirmed]);
     return <Collapse items={calItems(props)} defaultActiveKey={[1]} />
 }
 

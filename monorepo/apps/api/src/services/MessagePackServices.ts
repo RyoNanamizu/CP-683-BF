@@ -1,6 +1,5 @@
 import { Pool } from "pg";
 import {
-  MessagePack,
   MessagePackRecord,
   CreateMessagePackRequest,
   CreateMessagePackResponse,
@@ -11,90 +10,52 @@ import {
 
 
 export class MessagePackServices {
-  constructor(private pool: Pool) {}
-
-  private validateMessagePack(messagePack: MessagePack): boolean {
-    try {
-      // Check meta
-      if (
-        !messagePack.meta ||
-        !messagePack.meta.version ||
-        !messagePack.meta.hash_algorithm ||
-        !messagePack.meta.curve
-      ) {
-        return false;
-      }
-
-      // Check message
-      if (
-        !messagePack.message ||
-        !messagePack.message.payload ||
-        !messagePack.message.nonce ||
-        !messagePack.message.timestamp
-      ) {
-        return false;
-      }
-
-      // Check signature
-      if (
-        !messagePack.signature ||
-        !messagePack.signature.c0 ||
-        !Array.isArray(messagePack.signature.r) ||
-        !messagePack.signature.I ||
-        !Array.isArray(messagePack.signature.ring)
-      ) {
-        return false;
-      }
-
-      // Check proof
-      if (
-        !messagePack.proof ||
-        !messagePack.proof.gcm ||
-        !messagePack.proof.gcm.ciphertext ||
-        !messagePack.proof.gcm.iv ||
-        !messagePack.proof.gcm.tag ||
-        !messagePack.proof.inner_hash
-      ) {
-        return false;
-      }
-
-      return true;
-    } catch {
-      return false;
-    }
-  }
+  constructor(private pool: Pool) { }
 
   /**
    * Create a new message pack
    */
   async createMessagePack(
     request: CreateMessagePackRequest,
+    owner: string,
   ): Promise<CreateMessagePackResponse> {
     try {
-      //   // Validate message pack structure
-      //   if (!this.validateMessagePack(request.messagePack)) {
-      //     return {
-      //       success: false,
-      //       error: "Invalid message pack structure",
-      //     };
-      //   }
+      if (!request.messagePack || request.messagePack.trim().length === 0) {
+        return {
+          success: false,
+          error: "messagePack is required",
+        };
+      }
+
+      if (!request.memo || request.memo.trim().length === 0) {
+        return {
+          success: false,
+          error: "memo is required",
+        };
+      }
+
+      if (!request.credentialId || request.credentialId.trim().length === 0) {
+        return {
+          success: false,
+          error: "credentialId is required",
+        };
+      }
 
       // Validate owner
-      if (!request.owner || request.owner.trim().length === 0) {
+      if (!owner || owner.trim().length === 0) {
         return {
           success: false,
           error: "Owner username is required",
         };
       }
 
-      const content = JSON.stringify(request.messagePack);
       const timestamp = new Date().toISOString();
 
       const result = await this.pool.query(
-        `INSERT INTO message_packs (content, owner, timestamp) 
-         VALUES ($1, $2, $3) 
+        `INSERT INTO message_packs (content, memo, credential_id, owner, timestamp)
+         VALUES ($1, $2, $3, $4, $5)
          RETURNING id, timestamp`,
-        [content, request.owner, timestamp],
+        [request.messagePack, request.memo, request.credentialId, owner, timestamp],
       );
 
       return {
@@ -118,7 +79,7 @@ export class MessagePackServices {
   async getMessagePackById(id: string): Promise<GetMessagePackResponse> {
     try {
       const result = await this.pool.query(
-        `SELECT id, content, owner, timestamp 
+        `SELECT id, content, memo, credential_id, owner, timestamp
          FROM message_packs 
          WHERE id = $1`,
         [id],
@@ -134,7 +95,9 @@ export class MessagePackServices {
       const row = result.rows[0];
       const messagePack: MessagePackRecord = {
         id: row.id,
-        content: row.content,
+        messagePack: row.content,
+        memo: row.memo,
+        credentialId: row.credential_id,
         owner: row.owner,
         timestamp: row.timestamp,
       };
@@ -161,7 +124,7 @@ export class MessagePackServices {
   ): Promise<ListMessagePacksResponse> {
     try {
       const result = await this.pool.query(
-        `SELECT id, content, owner, timestamp 
+        `SELECT id, content, memo, credential_id, owner, timestamp
          FROM message_packs 
          WHERE owner = $1 
          ORDER BY timestamp DESC`,
@@ -170,7 +133,9 @@ export class MessagePackServices {
 
       const messagePacks: MessagePackRecord[] = result.rows.map((row: any) => ({
         id: row.id,
-        content: row.content,
+        messagePack: row.content,
+        memo: row.memo,
+        credentialId: row.credential_id,
         owner: row.owner,
         timestamp: row.timestamp,
       }));
