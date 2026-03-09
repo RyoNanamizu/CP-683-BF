@@ -96,7 +96,7 @@ const handleLogin = async (loginData: LoginChallenge) => {
     };
 };
 
-const getChallenge = (setCurrentUser: React.Dispatch<React.SetStateAction<string | null>>) => (messageApi: MessageInstance) => async (username: string) => {
+const getChallenge = (setCurrentUser: React.Dispatch<React.SetStateAction<string | null>>, setCurrentCredentialId: React.Dispatch<React.SetStateAction<string | null>>) => (messageApi: MessageInstance) => async (username: string) => {
     try {
         const data = await fetchChallenge(username, "/api/register/challenge");
 
@@ -115,6 +115,7 @@ const getChallenge = (setCurrentUser: React.Dispatch<React.SetStateAction<string
         });
 
         setCurrentUser(loginResult.handle)
+        setCurrentCredentialId(credentialId);
 
         sessionStorage.setItem(SESSION_TOKEN_KEY, loginResult.sessionToken);
     } catch (error) {
@@ -151,7 +152,7 @@ function Login() {
     const [usernameInputText, setUsernameInputText] = useState("");
     const [currentUser, setCurrentUser] = useState<string | null>(null);
     const [messageApi, contextHolder] = message.useMessage();
-    const getChallengeWithMessage = useCallback((username: string) => getChallenge(setCurrentUser)(messageApi)(username), [messageApi]);
+    const getChallengeWithMessage = useCallback((username: string) => getChallenge(setCurrentUser, setCurrentCredentialId)(messageApi)(username), [messageApi]);
     const fetchProfileWithSetter = useCallback(() => fetchProfile(setCurrentUser)(setCurrentCredentialId)(), []);
     const [currentCredentialId, setCurrentCredentialId] = useState<string | null>(null);
 

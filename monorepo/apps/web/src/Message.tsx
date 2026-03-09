@@ -1,8 +1,7 @@
 // import type { MessagePack } from "@repo/shared";
 import { Splitter, Flex, List, Descriptions, type DescriptionsProps, Button, Badge, Input } from "antd";
-import { getValidationResultStorageKey, STORAGE_KEY_RECEIVED_REQUESTS_LIST, STORAGE_KEY_SENT_REQUESTS_LIST } from "./constants";
 import { useEffect, useState } from "react";
-import { getMessagePackListFromBackend, getProofForReceiver, transferOwnershipForBackend, ValidateMessagePack, type TypeGetMessagePackListResponseTypeItem } from "./utils";
+import { getMessagePackById, getMessagePackListFromBackend, getProofForReceiver, getReceivedRequestsList, getSentRequestsList, postValidationRequest, putReceivedValidationRequest, putSentValidationRequest, transferOwnershipForBackend, ValidateMessagePack, type FetchSentRequestsListResponseItem, type TypeGetMessagePackListResponseTypeItem } from "./utils";
 import { base64urlToArrayBuffer, bytesToRawLRS, LRSFromRawLRS, uint8ArrayEquals, uint8ArrayToBase64, verifyLRS, type MessagePack } from "@repo/shared";
 import type { PresetStatusColorType } from "antd/es/_util/colors";
 
@@ -20,20 +19,8 @@ const Desc: React.FC<Readonly<{ text?: string | number }>> = (props) => (
 }
  */
 
-const getMessagePackList = async (username: string) => {
-    const messagePacksList = (await getMessagePackListFromBackend(username)).messagePacks
-    return messagePacksList;
-}
 
-const getRequestList = () => {
-    const messagePacksList = JSON.parse(localStorage.getItem(STORAGE_KEY_SENT_REQUESTS_LIST) ?? "[]") as string[];
-    return messagePacksList;
-}
 
-const getReceivedRequestList = () => {
-    const messagePacksList = JSON.parse(localStorage.getItem(STORAGE_KEY_RECEIVED_REQUESTS_LIST) ?? "[]") as string[];
-    return messagePacksList;
-}
 
 
 const convertMessagePackToDisplayData = (messagePack: MessagePack, memo: string): DescriptionsProps['items'] => {
@@ -62,18 +49,6 @@ const getProofValidationResult = async (credentialId: string, messagePack: Messa
     return result;
 }
 
-const sendValidationRequest = async (index: number, username: string) => {
-    const sentRequestList = getRequestList();
-    const messagePackList = await getMessagePackListFromBackend(username);
-    sentRequestList.length = messagePackList.messagePacks.length;
-    sentRequestList[index] = "Pending";
-    localStorage.setItem(STORAGE_KEY_SENT_REQUESTS_LIST, JSON.stringify(sentRequestList));
-    const receivedRequestList = getReceivedRequestList();
-    receivedRequestList.length = messagePackList.messagePacks.length;
-    receivedRequestList[index] = "Pending";
-    localStorage.setItem(STORAGE_KEY_RECEIVED_REQUESTS_LIST, JSON.stringify(receivedRequestList));
-}
-
 const exportMessagePack = async (credentialId: string, index: number, memo: string, messagePackData: MessagePack) => {
     const messagePackExportData = {
         pack: messagePackData,
@@ -100,7 +75,7 @@ const TransferOwnership = (props: { id: string, onConfirmed: () => void }) => {
 
     return editingFlag ?
         <Flex gap="small">
-            <Input placeholder="New Owner's Credential ID" value={newOwner} onChange={(e) => setNewOwner(e.target.value)} />
+            <Input placeholder="New Owner's Username" value={newOwner} onChange={(e) => setNewOwner(e.target.value)} />
             <Button color="danger" variant="solid" onClick={() => {
                 handleTransferOwnership(setEditingFlag)(props.id, newOwner);
                 props.onConfirmed();
@@ -112,7 +87,32 @@ const TransferOwnership = (props: { id: string, onConfirmed: () => void }) => {
 
 }
 
-const MessagePackDetail = (props: { index: number, memo: string, username: string, credentialId: string, data: string | null, messageId: string, onConfirmed: () => void }) => {
+const handleSendRequest = async (id: string, username: string, onConfirmed: () => void) => {
+    const result = await postValidationRequest(id, username)
+    if (result) {
+        onConfirmed();
+    }
+}
+
+const SendRequest = (props: { id: string, onConfirmed: () => void }) => {
+    const [editingFlag, setEditingFlag] = useState(false)
+    const [receiver, setReceiver] = useState("")
+
+    return editingFlag ?
+        <Flex gap="small">
+            <Input placeholder="Receiver's Username" value={receiver} onChange={(e) => setReceiver(e.target.value)} />
+            <Button color="primary" variant="solid" onClick={() => {
+                handleSendRequest(props.id, receiver, props.onConfirmed);
+                setEditingFlag(false);
+            }}>Submit</Button>
+            <Button color="danger" variant="solid" onClick={() => { setEditingFlag(false) }}>Cancel</Button>
+        </Flex>
+        :
+        <Flex><Button color="primary" variant="solid" onClick={() => { setEditingFlag(true) }}>Identity Confirmation Request</Button></Flex>
+
+}
+
+const MessagePackDetail = (props: { index: number, memo: string, username: string, credentialId: string, data: string | null, messageId: string, onConfirmed: () => void, onSentConfirmed: () => void }) => {
     if (props.data === null) return <Desc text="No data found for this message pack" />
     const messagePackData = JSON.parse(props.data) as MessagePack;
     const [validationResult, setValidationResult] = useState<boolean | null>(null);
@@ -129,19 +129,7 @@ const MessagePackDetail = (props: { index: number, memo: string, username: strin
         </Badge.Ribbon>
         <Flex gap="middle">
             <TransferOwnership id={props.messageId} onConfirmed={props.onConfirmed} />
-            <Button
-                color="primary"
-                variant="solid"
-                onClick={async () => {
-                    try {
-                        await sendValidationRequest(props.index, props.username);
-                    } catch (error) {
-                        console.error("Failed to send validation request:", error);
-                    }
-                }}
-            >
-                Identity Confirmation Request
-            </Button>
+            <SendRequest id={props.messageId} onConfirmed={props.onSentConfirmed} />
             <Button color="primary" variant="solid" onClick={() => exportMessagePack(props.credentialId, props.index, props.memo, messagePackData)}>Export To File</Button>
         </Flex>
     </Flex>
@@ -149,19 +137,13 @@ const MessagePackDetail = (props: { index: number, memo: string, username: strin
 
 const mappingMessageMapList = (messagePackList: TypeGetMessagePackListResponseTypeItem[]): string[] => messagePackList.map(item => item.memo.length > 0 ? item.memo : "UNKNOWN");
 
-const fetchMessagePackList = (setMessagePackList: React.Dispatch<React.SetStateAction<TypeGetMessagePackListResponseTypeItem[]>>) => async (username: string) => {
-    const messagePackList = await getMessagePackList(username);
-    setMessagePackList(messagePackList);
-}
 
-export const MessagePackList = (props: { username: string, credentialId: string }) => {
+
+export const MessagePackList = (props: { messagePackList: TypeGetMessagePackListResponseTypeItem[], username: string, credentialId: string, onSentConfirmed: () => void, onConfirmed: () => void }) => {
     const [currentIndex, setCurrentIndex] = useState<number | null>(null);
-    const [messagePackList, setMessagePackList] = useState<TypeGetMessagePackListResponseTypeItem[]>([]);
-    useEffect(() => {
-        fetchMessagePackList(setMessagePackList)(props.username);
-    }, [])
 
-    const messagePackListForDisplay = mappingMessageMapList(messagePackList);
+
+    const messagePackListForDisplay = mappingMessageMapList(props.messagePackList);
 
 
     return <Flex vertical gap="large" style={{ minHeight: "350px", padding: "16px" }}>
@@ -172,13 +154,14 @@ export const MessagePackList = (props: { username: string, credentialId: string 
             <Splitter.Panel min="20%">
                 {currentIndex !== null && <MessagePackDetail
                     onConfirmed={() => {
-                        fetchMessagePackList(setMessagePackList)(props.username);
+                        props.onConfirmed();
                         setCurrentIndex(null);
                     }}
-                    messageId={messagePackList[currentIndex].id}
-                    data={messagePackList[currentIndex]?.messagePack.length > 0 ? messagePackList[currentIndex].messagePack : null}
+                    onSentConfirmed={props.onSentConfirmed}
+                    messageId={props.messagePackList[currentIndex].id}
+                    data={props.messagePackList[currentIndex]?.messagePack.length > 0 ? props.messagePackList[currentIndex].messagePack : null}
                     index={currentIndex}
-                    memo={messagePackList[currentIndex].memo}
+                    memo={props.messagePackList[currentIndex].memo}
                     username={props.username}
                     credentialId={props.credentialId} />}
             </Splitter.Panel>
@@ -186,42 +169,47 @@ export const MessagePackList = (props: { username: string, credentialId: string 
     </Flex>
 }
 
-export const SentValidationRequestList = (props: { username: string }) => {
-    const requestList = getRequestList();
-    const [messagePackList, setMessagePackList] = useState<TypeGetMessagePackListResponseTypeItem[]>([]);
-    useEffect(() => {
-        fetchMessagePackList(setMessagePackList)(props.username);
-    }, [])
+
+export const SentValidationRequestList = (props: { username: string, requestList: FetchSentRequestsListResponseItem[], messagePackList: TypeGetMessagePackListResponseTypeItem[] }) => {
+    // const requestList = getRequestList();
+
 
     return <Flex vertical gap="large">
-        <List dataSource={requestList} renderItem={(item, index) => <List.Item>
+        <List dataSource={props.requestList} renderItem={(item, index) => <List.Item>
             <Flex justify="space-between" style={{ width: "100%" }}>
-                <Flex>{messagePackList[index]?.memo || "UNKNOWN"}</Flex>
+                <Flex>{props.messagePackList[index]?.memo || "UNKNOWN"}</Flex>
                 <Flex gap="middle" align="middle">
                     {/* <Flex>{item !== "Passed" && <Button color="primary" variant="solid" onClick={() => validateProof(index, messagePackList[index]?.messagePack || null)}>Validate</Button>}</Flex> */}
-                    <Flex><Badge status={stateMapping[item] ?? "default"} text={item} /></Flex>
+                    <Flex>
+                        <Badge status={stateMapping[item?.status ?? "default"] ?? "default"} text={item?.status ?? "default"} />
+                    </Flex>
                 </Flex>
             </Flex>
         </List.Item>} />
     </Flex>
 }
 
-const decryptProof = async (index: number, credentialId: string, messagePackData: MessagePack) => {
-    const receivedRequestList = getReceivedRequestList();
-    const sentRequestList = getRequestList();
-    const result = await getProofValidationResult(credentialId, messagePackData);
-    if (result === null) {
-        receivedRequestList[index] = "Failed";
-    } else {
-        sentRequestList[index] = "Replied";
-        receivedRequestList[index] = "Passed";
-        localStorage.setItem(getValidationResultStorageKey(index), uint8ArrayToBase64(new Uint8Array(result)));
+const decryptProof = async (requestId: string, messagePackId: string) => {
+    const data = (await getMessagePackById(messagePackId)).messagePack;
+    const messagePackDataRaw = data.messagePack
+    const messagePackData = messagePackDataRaw.length > 0 ? JSON.parse(messagePackDataRaw) as MessagePack : null;
+    if (messagePackData === null) {
+        new Error("No message pack data found for this validation request. It might be still pending or an error occurred.");
+        console.error("No message pack data found for this validation request. It might be still pending or an error occurred.");
+        putReceivedValidationRequest(requestId, 'Error');
+        return;
     }
-    localStorage.setItem(STORAGE_KEY_RECEIVED_REQUESTS_LIST, JSON.stringify(receivedRequestList));
-    localStorage.setItem(STORAGE_KEY_SENT_REQUESTS_LIST, JSON.stringify(sentRequestList));
+    const result = await getProofValidationResult(data.credentialId, messagePackData);
+    if (result === null) {
+        new Error("No proof found for this validation request. It might be still pending or an error occurred.");
+        console.error("No proof found for this validation request. It might be still pending or an error occurred.");
+        putReceivedValidationRequest(requestId, 'Error');
+    } else {
+        putSentValidationRequest(requestId, 'respond', uint8ArrayToBase64(new Uint8Array(result)));
+    }
 }
 
-const validateProof = (index: number, messagePackData: MessagePack) => {
+/* const validateProof = (index: number, messagePackData: MessagePack) => {
     const proofItem = localStorage.getItem(getValidationResultStorageKey(index));
     const sentRequestList = getRequestList();
     if (proofItem === null) {
@@ -246,7 +234,7 @@ const validateProof = (index: number, messagePackData: MessagePack) => {
     const state = validationResult ? "Passed" : "Failed";
     sentRequestList[index] = state;
     localStorage.setItem(STORAGE_KEY_SENT_REQUESTS_LIST, JSON.stringify(sentRequestList));
-}
+} */
 
 const stateMapping: Record<string, PresetStatusColorType> = {
     "Pending": "warning",
@@ -257,7 +245,7 @@ const stateMapping: Record<string, PresetStatusColorType> = {
     "Replied": "warning",
 }
 
-const refuseProof = (index: number) => {
+/* const refuseProof = (index: number) => {
     const receivedRequestList = getReceivedRequestList();
     const sentRequestList = getRequestList();
     sentRequestList[index] = "Refused";
@@ -265,25 +253,31 @@ const refuseProof = (index: number) => {
     localStorage.setItem(STORAGE_KEY_RECEIVED_REQUESTS_LIST, JSON.stringify(receivedRequestList));
     localStorage.setItem(STORAGE_KEY_SENT_REQUESTS_LIST, JSON.stringify(sentRequestList));
 }
-
-export const ReceivedValidationRequestList = (props: { username: string, credentialId: string }) => {
-    const receivedRequestList = getReceivedRequestList();
-    const [messagePackList, setMessagePackList] = useState<TypeGetMessagePackListResponseTypeItem[]>([]);
-    useEffect(() => {
-        fetchMessagePackList(setMessagePackList)(props.username);
-    }, [])
-
-
+ */
+export const ReceivedValidationRequestList = (props: {
+    receivedRequestList: FetchSentRequestsListResponseItem[],
+    username: string,
+    credentialId: string,
+    messagePackList: TypeGetMessagePackListResponseTypeItem[]
+    onConfirmed: () => void
+}) => {
     return <Flex vertical gap="large">
-        <List dataSource={receivedRequestList} renderItem={(item, index) => <List.Item>
+        <List dataSource={props.receivedRequestList} renderItem={(item) => <List.Item>
             <Flex justify="space-between" style={{ width: "100%" }}>
                 <Flex gap="large">
-                    <Flex>{messagePackList[index]?.memo || "UNKNOWN"}</Flex>
+                    <Flex>{item.createdAt}</Flex>
                 </Flex>
                 <Flex gap="middle" align="center">
-                    {/* {item !== "Passed" && item !== "Refused" && <Button color="primary" variant="solid" onClick={() => decryptProof(index, props.username)}>Validate</Button>} */}
-                    {item !== "Passed" && item !== "Refused" && <Button color="danger" variant="solid" onClick={() => refuseProof(index)}>Refuse or Admit Failure</Button>}
-                    <Flex><Badge status={stateMapping[item] ?? "default"} text={item} /></Flex>
+                    {item.status !== "Passed" &&
+                        item.status !== "Refused" &&
+                        <Button color="primary" variant="solid" onClick={() => {
+                            decryptProof(item.id, item.messagePackId)
+                            props.onConfirmed();
+                        }}>
+                            Validate
+                        </Button>}
+                    {/* {item.status !== "Passed" && item.status !== "Refused" && <Button color="danger" variant="solid" onClick={() => refuseProof(index)}>Refuse or Admit Failure</Button>} */}
+                    <Flex><Badge status={stateMapping[item.status] ?? "default"} text={item.status} /></Flex>
                 </Flex>
             </Flex>
         </List.Item>} />

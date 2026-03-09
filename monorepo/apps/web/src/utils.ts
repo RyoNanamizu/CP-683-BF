@@ -351,3 +351,15 @@ export const putReceivedValidationRequest = async (requestId: string, result: 'P
     }
     return true;
 }
+
+export const getMessagePackById = async (id: string) => {
+    const response = await fetch("/api/message/by_id/" + encodeURIComponent(id), {
+        headers: getAuthedHeader({ "Content-Type": "application/json" }),
+    });
+    if (!response.ok || response.status >= 300) {
+        const errorData = await response.json() as ErrorResponse;
+        throw new Error(`Failed to fetch message pack by id: ${errorData.error}`);
+    }
+    const responseData = await response.json() as { messagePack: TypeGetMessagePackListResponseTypeItem };
+    return responseData;
+}
