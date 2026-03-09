@@ -1,7 +1,7 @@
 // import type { MessagePack } from "@repo/shared";
 import { Splitter, Flex, List, Descriptions, type DescriptionsProps, Button, Badge, Input } from "antd";
 import { useEffect, useState } from "react";
-import { getMessagePackById, getMessagePackListFromBackend, getProofForReceiver, getReceivedRequestsList, getSentRequestsList, postValidationRequest, putReceivedValidationRequest, putSentValidationRequest, transferOwnershipForBackend, ValidateMessagePack, type FetchSentRequestsListResponseItem, type TypeGetMessagePackListResponseTypeItem } from "./utils";
+import { getMessagePackById, getProofForReceiver, postValidationRequest, putReceivedValidationRequest, putSentValidationRequest, transferOwnershipForBackend, ValidateMessagePack, type FetchSentRequestsListResponseItem, type TypeGetMessagePackListResponseTypeItem } from "./utils";
 import { base64urlToArrayBuffer, bytesToRawLRS, LRSFromRawLRS, uint8ArrayEquals, uint8ArrayToBase64, verifyLRS, type MessagePack } from "@repo/shared";
 import type { PresetStatusColorType } from "antd/es/_util/colors";
 
@@ -166,26 +166,32 @@ export const MessagePackList = (props: { messagePackList: TypeGetMessagePackList
                     credentialId={props.credentialId} />}
             </Splitter.Panel>
         </Splitter >
+        <Flex><Button color="primary" variant="solid" onClick={props.onConfirmed}>Refresh</Button></Flex>
     </Flex>
 }
 
 
-export const SentValidationRequestList = (props: { username: string, requestList: FetchSentRequestsListResponseItem[], messagePackList: TypeGetMessagePackListResponseTypeItem[] }) => {
-    // const requestList = getRequestList();
-
-
+export const SentValidationRequestList = (props: { username: string, requestList: FetchSentRequestsListResponseItem[], messagePackList: TypeGetMessagePackListResponseTypeItem[], onConfirmed: () => void }) => {
     return <Flex vertical gap="large">
         <List dataSource={props.requestList} renderItem={(item, index) => <List.Item>
             <Flex justify="space-between" style={{ width: "100%" }}>
                 <Flex>{props.messagePackList[index]?.memo || "UNKNOWN"}</Flex>
                 <Flex gap="middle" align="middle">
-                    {/* <Flex>{item !== "Passed" && <Button color="primary" variant="solid" onClick={() => validateProof(index, messagePackList[index]?.messagePack || null)}>Validate</Button>}</Flex> */}
+                    <Flex>
+                        {item.status === "Replied" &&
+                            <Button
+                                color="primary"
+                                variant="solid"
+                                onClick={() => validateProof(item.messagePackId, item.responsePayload ?? "", item.id)}>
+                                Validate</Button>}
+                    </Flex>
                     <Flex>
                         <Badge status={stateMapping[item?.status ?? "default"] ?? "default"} text={item?.status ?? "default"} />
                     </Flex>
                 </Flex>
             </Flex>
         </List.Item>} />
+        <Flex><Button color="primary" variant="solid" onClick={props.onConfirmed} >Refresh</Button></Flex>
     </Flex>
 }
 
@@ -195,46 +201,46 @@ const decryptProof = async (requestId: string, messagePackId: string) => {
     const messagePackData = messagePackDataRaw.length > 0 ? JSON.parse(messagePackDataRaw) as MessagePack : null;
     if (messagePackData === null) {
         new Error("No message pack data found for this validation request. It might be still pending or an error occurred.");
-        console.error("No message pack data found for this validation request. It might be still pending or an error occurred.");
         putReceivedValidationRequest(requestId, 'Error');
         return;
     }
     const result = await getProofValidationResult(data.credentialId, messagePackData);
     if (result === null) {
         new Error("No proof found for this validation request. It might be still pending or an error occurred.");
-        console.error("No proof found for this validation request. It might be still pending or an error occurred.");
         putReceivedValidationRequest(requestId, 'Error');
     } else {
         putSentValidationRequest(requestId, 'respond', uint8ArrayToBase64(new Uint8Array(result)));
     }
 }
 
-/* const validateProof = (index: number, messagePackData: MessagePack) => {
-    const proofItem = localStorage.getItem(getValidationResultStorageKey(index));
-    const sentRequestList = getRequestList();
-    if (proofItem === null) {
-        sentRequestList[index] = "Error";
-        localStorage.setItem(STORAGE_KEY_SENT_REQUESTS_LIST, JSON.stringify(sentRequestList));
+const validateProof = async (messagePackId: string, proof: string, requestId: string) => {
+    const data = (await getMessagePackById(messagePackId)).messagePack;
+    const messagePackDataRaw = data.messagePack
+    const messagePackData = messagePackDataRaw.length > 0 ? JSON.parse(messagePackDataRaw) as MessagePack : null;
+    if (proof.length <= 0) {
+        new Error("No proof found for this validation request. It might be still pending or an error occurred.");
         return;
     }
-    const proofRaw = new Uint8Array(base64urlToArrayBuffer(proofItem));
+    if (messagePackData === null) {
+        new Error("No message pack data found for this validation request. It might be still pending or an error occurred.");
+        return;
+    }
+    const proofRaw = new Uint8Array(base64urlToArrayBuffer(proof));
     const rawLRS = bytesToRawLRS(proofRaw);
     const proofPubKeys = rawLRS.ring;
     const signatureRaw = new Uint8Array(base64urlToArrayBuffer(messagePackData.signature));
     const signatureLRSRaw = bytesToRawLRS(signatureRaw);
     const signPubKeys = signatureLRSRaw.ring;
     if (!proofPubKeys.some(key => signPubKeys.some(signKey => uint8ArrayEquals(key, signKey)))) {
-        sentRequestList[index] = "Failed";
-        localStorage.setItem(STORAGE_KEY_SENT_REQUESTS_LIST, JSON.stringify(sentRequestList));
+        putReceivedValidationRequest(requestId, 'Failed')
         return;
     }
     const message = messagePackData.message.payload + messagePackData.message.timestamp + messagePackData.message.nonce;
     const proofLRS = LRSFromRawLRS(rawLRS);
     const validationResult = verifyLRS(message, proofLRS);
-    const state = validationResult ? "Passed" : "Failed";
-    sentRequestList[index] = state;
-    localStorage.setItem(STORAGE_KEY_SENT_REQUESTS_LIST, JSON.stringify(sentRequestList));
-} */
+    putReceivedValidationRequest(requestId, validationResult ? 'Passed' : 'Failed')
+
+}
 
 const stateMapping: Record<string, PresetStatusColorType> = {
     "Pending": "warning",
@@ -245,15 +251,10 @@ const stateMapping: Record<string, PresetStatusColorType> = {
     "Replied": "warning",
 }
 
-/* const refuseProof = (index: number) => {
-    const receivedRequestList = getReceivedRequestList();
-    const sentRequestList = getRequestList();
-    sentRequestList[index] = "Refused";
-    receivedRequestList[index] = "Refused";
-    localStorage.setItem(STORAGE_KEY_RECEIVED_REQUESTS_LIST, JSON.stringify(receivedRequestList));
-    localStorage.setItem(STORAGE_KEY_SENT_REQUESTS_LIST, JSON.stringify(sentRequestList));
+const refuseProof = async (requestId: string) => {
+    await putSentValidationRequest(requestId, 'refuse');
 }
- */
+
 export const ReceivedValidationRequestList = (props: {
     receivedRequestList: FetchSentRequestsListResponseItem[],
     username: string,
@@ -268,19 +269,22 @@ export const ReceivedValidationRequestList = (props: {
                     <Flex>{item.createdAt}</Flex>
                 </Flex>
                 <Flex gap="middle" align="center">
-                    {item.status !== "Passed" &&
-                        item.status !== "Refused" &&
+                    {item.status === "Pending" &&
                         <Button color="primary" variant="solid" onClick={() => {
                             decryptProof(item.id, item.messagePackId)
                             props.onConfirmed();
                         }}>
                             Validate
                         </Button>}
-                    {/* {item.status !== "Passed" && item.status !== "Refused" && <Button color="danger" variant="solid" onClick={() => refuseProof(index)}>Refuse or Admit Failure</Button>} */}
+                    {item.status === "Pending" && <Button color="danger" variant="solid" onClick={() => {
+                        refuseProof(item.id)
+                        props.onConfirmed();
+                    }}>Refuse or Admit Failure</Button>}
                     <Flex><Badge status={stateMapping[item.status] ?? "default"} text={item.status} /></Flex>
                 </Flex>
             </Flex>
         </List.Item>} />
+        <Flex><Button color="primary" variant="solid" onClick={props.onConfirmed}>Refresh</Button></Flex>
     </Flex>
 }
 

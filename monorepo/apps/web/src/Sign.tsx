@@ -82,7 +82,8 @@ const getItems = (props: ItemProps): CollapseProps['items'] => {
         {
             key: 4,
             label: "Sent Validation Request List",
-            children: <SentValidationRequestList username={props.username} messagePackList={props.messagePackList} requestList={props.requestList} />,
+            children: <SentValidationRequestList onConfirmed={props.onSentConfirmed}
+                username={props.username} messagePackList={props.messagePackList} requestList={props.requestList} />,
         }
     ]
 }
