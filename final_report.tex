@@ -1,0 +1,303 @@
+\documentclass[letterpaper,11pt]{article}
+
+% Packages
+\usepackage[utf8]{inputenc}
+\usepackage{geometry}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{fancyhdr}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{listings}
+
+% Page Setup
+\geometry{left=2.5cm, right=2.5cm, top=2.5cm, bottom=2.5cm}
+\setlength{\headheight}{14pt}
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{\textbf{Final Report}}
+\lhead{01 - CP683-BF - 4/2026}
+\cfoot{\thepage}
+
+% Custom Colors
+\definecolor{primary}{RGB}{0, 51, 102}
+\definecolor{accent}{RGB}{204, 0, 0}
+
+% Title Format
+\titleformat{\section}
+{\normalfont\Large\bfseries\color{primary}}{\thesection}{1em}{}
+
+\titleformat{\subsection}
+{\normalfont\large\bfseries\color{primary}}{\thesubsection}{1em}{}
+
+% Code listing style
+\lstdefinestyle{code}{
+    backgroundcolor=\color{gray!8},
+    basicstyle=\ttfamily\small,
+    keywordstyle=\color{blue},
+    commentstyle=\color{gray},
+    stringstyle=\color{teal},
+    breaklines=true,
+    frame=single,
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+    tabsize=2
+}
+\lstset{style=code}
+
+% Metadata
+\title{\textbf{AIVS: Anonymous Identification Verification System}\\Based on Ring Signatures with Isolated Smart Card Hardware}
+\author{
+\textit{Dinh Anh Khoa Nguyen - 245849840 - nguy9840@mylaurier.ca}\\
+\textit{Jiangtao Wang - 245823800 - Wang2370@mylaurier.ca}\\
+\textit{Leila Chen - 245850620 - chen5062@mylaurier.ca}\\
+\textit{Yuyang Wu - 245817310 - wuxx7310@mylaurier.ca}\\
+}
+\date{April 2026}
+
+\begin{document}
+
+\maketitle
+\thispagestyle{empty}
+
+\begin{abstract}
+This report outlines the engineering implementation of a privacy-preserving messaging platform that decouples message integrity from identity revelation. Leveraging Yubikey hardware PRF and nested Ring Signatures, the system allows users to send undeniable, tamper-proof messages anonymously, with the exclusive capability to retroactively prove authorship. The project adopts an Agile methodology, utilizing React/TypeScript for the frontend and Node.js for the backend.
+\end{abstract}
+\newpage
+
+\tableofcontents
+\newpage
+
+% ============================================================
+\section{Introduction}
+
+\subsection{Motivation and Problem Statement}
+In current cryptographic systems, users typically face a binary choice:
+\begin{enumerate}
+    \item \textbf{Signed Messages:} Authenticity is guaranteed, but privacy is compromised immediately (e.g., PGP).
+    \item \textbf{Anonymous Messages:} Privacy is maintained, but credibility is low, and the author cannot later claim credit or reputation for the content (e.g., Tor-based drops).
+\end{enumerate}
+There is a lack of infrastructure that supports \textit{conditional anonymity}. Where a user can speak freely now and prove they spoke later, without relying on a trusted third party.
+
+\subsection{Project Objectives}
+\begin{itemize}
+    \item \textbf{Objective A:} Anonymous message dispatching where the sender is mathematically hidden among a set of 7 decoys (1-of-8 Ring Signature).
+    \item \textbf{Objective B:} Integrity verification by the recipient without identity knowledge.
+    \item \textbf{Objective C:} A ``Challenge-Response'' flow where the sender can prove authorship by unlocking a cryptographic proof using their physical Yubikey.
+\end{itemize}
+
+\subsection{Scope and Limitations}
+
+\subsection{Report Structure}
+
+% ============================================================
+\section{Background and Related Work}
+
+\subsection{Anonymous Communication Systems}
+
+\subsection{Ring Signatures --- Theory and Prior Work}
+
+\subsection{Hardware Security Tokens and WebAuthn PRF}
+
+\subsection{Gap Analysis}
+
+% ============================================================
+\section{System Design}
+
+\subsection{Architecture Overview}
+The system follows a \textbf{Thick Client, Thin Server} architecture. The server acts purely as a bulletin board and relay, possessing zero knowledge of user identities or private keys, and is explicitly excluded from the trusted computing base.
+
+\subsection{Security Model and Threat Model}
+\begin{itemize}
+    \item \textbf{Key Derivation:} The OTK is derived with the participation of the Yubikey, ensuring it cannot be predicted or extracted.
+    \item \textbf{Anonymity Set:} 1 real signer + 7 random decoys = 8 total keys. Probability of guessing the signer is $1/8$ per message (statistically negligible for identification).
+    \item \textbf{Forward Secrecy:} Compromise of the Yubikey allows decryption of past Proofs but does not reveal the identity of past messages \textit{unless} the attacker actively performs the decryption and linking.
+\end{itemize}
+
+\subsection{Cryptographic Construction}
+\begin{enumerate}
+    \item \textbf{Setup:} Generate One-Time Key ($OTK$) via Yubikey. Generate 7 Fake Keys ($FK_{1...7}$).
+    \item \textbf{Inner Layer (The Proof):}
+    $$ Sig_{inner} = RingSign(Message, \{OTK, FK_{1...7}\}) $$
+    $$ Key_{proof} = KDF(PRF_{Yubikey}(Hash(OTK))) $$
+    $$ Proof = Encrypt_{AES-GCM}(Sig_{inner}, Key_{proof}) $$
+    where the hash of the $OTK$ is used as a salt to bind the proof key to the one-time signing key.
+    \item \textbf{Outer Layer (The Transmission):}
+    $$ Sig_{outer} = RingSign(Message || Hash(Sig_{inner}), \{OTK, FK_{1...7}\}) $$
+    \item \textbf{Verification:} Upon decryption, the Linkable Tag of $Sig_{inner}$ must equal the Linkable Tag of $Sig_{outer}$.
+\end{enumerate}
+
+\subsection{Component Diagram}
+\begin{verbatim}
+[Client A (Sender)]          [Server (Node.js)]          [Client B (Recipient)]
+       |                            |                            |
+   (Yubikey)                        |                            |
+       | -- Gen OTK & Sig -->       |                            |
+       | -- POST Message --->       |                            |
+       |                            | -- Store Message -->       |
+       |                            |                            |
+       |                            | -- WS / Push Event -->     |
+       |                            |                            |
+       |                            |             (Verify Outer Sig locally)
+       |                            |                            |
+   (Challenge) <------------------  | <----- Request Proof ----- |
+       |                            |                            |
+   (Decrypt Proof)                  |                            |
+       | -- Send Decrypted Sig ->   |                            |
+       |                            | -- Forward Sig ----------> |
+       |                            |                            |
+       |                            |             (Verify Inner Sig & Link)
+\end{verbatim}
+
+\subsection{Data Flow Diagram}
+\begin{enumerate}
+    \item \textbf{Registration:} None required for the messaging protocol itself (stateless). Optional username registration maps public handles to WebAuthn Credential IDs for routing.
+    \item \textbf{Signing:} All cryptographic operations occur in the browser memory. The Yubikey is accessed via \texttt{navigator.credentials.get(\{ prf: ... \})}.
+\end{enumerate}
+
+\subsection{Database Schema}
+
+% ============================================================
+\section{Implementation}
+
+\subsection{Technology Stack}
+\begin{itemize}
+    \item \textbf{Frontend:} React, TypeScript.
+    \item \textbf{Cryptography (Client):} WebAuthn API (PRF extension), Elliptic Curve Library (e.g., \texttt{elliptic} or WASM-based Rust bindings) for Ring Signatures.
+    \item \textbf{Backend:} Node.js (Express/NestJS).
+    \item \textbf{Database:} PostgreSQL (Stores only blobs: Message, Public Keys Ring, Signature, Encrypted Proof).
+\end{itemize}
+
+\subsection{Cryptography Module}
+
+\subsection{YubiKey Integration via WebAuthn PRF}
+
+\subsection{Backend API}
+
+\subsection{Frontend UI}
+
+\subsection{End-to-End Flow: Alice $\rightarrow$ Bob $\rightarrow$ Reveal}
+The system involves three primary roles: the Sender, the Recipient, and a Backend Server, with a YubiKey hardware token participating in cryptographic operations. Both the Sender and the Recipient interact with the system through a web browser, while the backend server functions solely as a message relay and storage service.
+
+All cryptographic operations are performed locally on the client side with the assistance of the YubiKey. The server does not generate, store, or process private keys, and only handles opaque data blobs, including messages, signatures, and encrypted proofs. The YubiKey is used to provide hardware-bound PRF outputs that participate in one-time key derivation and proof encryption, without exposing secret material to the browser or operating system.
+
+The system does not maintain a global signing key registry. Each message is associated with a freshly derived one-time key, and no signing keys are reused across messages.
+
+During message transmission, the Sender composes a message using a browser-based client with a connected YubiKey. A one-time key is derived with the participation of the YubiKey and used, together with a fixed set of randomly generated decoy keys, to construct a ring signature over the message. To support future authorship verification, an additional inner ring signature is generated and encrypted as a proof using a symmetric key derived from the YubiKey PRF output. An outer ring signature is then computed over the message concatenated with the hash of the encrypted proof. The message, outer signature, and encrypted proof are transmitted to the Recipient via the backend server.
+
+Upon receipt, the Recipient verifies the outer ring signature to confirm message integrity and authenticity, while the Sender's identity remains hidden within the anonymity set. The encrypted proof is not required for this initial verification.
+
+If identity verification is later requested, the Recipient sends the original message, signature, and encrypted proof to the claimed Sender. Using the same YubiKey, the Sender derives the corresponding decryption key and decrypts the proof to reveal the inner ring signature. The decrypted signature is returned to the Recipient, who verifies its validity and linkability against the original message and signature to confirm authorship.
+
+% ============================================================
+\section{Evaluation}
+
+\subsection{Functional Testing}
+
+\subsection{Security Analysis}
+
+\subsection{Performance Analysis}
+
+\subsection{Limitations and Edge Cases}
+
+% ============================================================
+\section{Project Management}
+
+\subsection{Agile Methodology and Sprint Summary}
+
+\subsubsection*{Sprint 0: Feasibility \& PoC (2 Weeks)}
+\begin{itemize}
+    \item \textbf{Goal:} Validate WebAuthn and Yubikey PRF behavior in the Chrome/Firefox browser.
+    \item \textbf{Tasks:}
+    \begin{itemize}
+        \item Test WebAuthn registration and authentication process in Chrome/Firefox browser
+        \item Validate PRF output by using identical salts
+        \item Derive AES keys from PRF output
+    \end{itemize}
+    \item \textbf{Deliverable:} A minimal browser-based script that inputs a salt and outputs a consistent AES key using a Yubikey.
+\end{itemize}
+
+\subsubsection*{Milestone 1: Core Cryptography Module (2 weeks)}
+\begin{itemize}
+    \item \textbf{Goal:} Implement Linkable Ring Signatures in TypeScript/WASM.
+    \item \textbf{Tasks:}
+    \begin{itemize}
+        \item Implement a one-time key from WebAuthn
+        \item Implement linkable ring signatures (1-of-8) in Typescript/WASM
+        \item Implement linkability tag generation and verification
+        \item Unit tests for signing, verification, and tag
+    \end{itemize}
+    \item \textbf{Deliverable:} Unit tests proving 1-of-8 signing and verification, and tag linking.
+\end{itemize}
+
+\subsubsection*{Milestone 2: Backend \& Basic UI (2 weeks)}
+\begin{itemize}
+    \item \textbf{Goal:} Message transport and basic user interaction.
+    \item \textbf{Tasks:}
+    \begin{itemize}
+        \item Implement Node.js backend for storing and retrieving message
+        \item Design message, signature, and proof data format
+        \item Design and implement a React frontend user interface for composing and viewing messages
+        \item Integrate WebAuthn for user login
+    \end{itemize}
+    \item \textbf{Deliverable:} Node.js API to store/retrieve message blobs. React UI to compose messages.
+\end{itemize}
+
+\subsubsection*{Milestone 3: Integration \& The ``Reveal'' Flow (2 weeks)}
+\begin{itemize}
+    \item \textbf{Goal:} Connect crypto with UI and demonstrate end-to-end flow.
+    \item \textbf{Tasks:}
+    \begin{itemize}
+        \item Integrate ring signature into the message
+        \item Integrate proof encryption and decryption using YubiKey PRF
+        \item Implement complete end-to-end flow from proof request, decryption, and verification
+        \item Validate and test the flow
+    \end{itemize}
+    \item \textbf{Deliverable:} End-to-End flow: Alice sends anonymous msg $\rightarrow$ Bob requests proof $\rightarrow$ Alice reveals $\rightarrow$ Bob verifies.
+\end{itemize}
+
+\subsubsection*{Milestone 4: Evaluation and Documentation (1 week)}
+\begin{itemize}
+    \item \textbf{Goal:} Testing the system and prepare for evaluation and document.
+    \item \textbf{Tasks:}
+    \begin{itemize}
+        \item Bug fixes and handle edge-cases if persist
+        \item Security, threat, and performance review
+        \item Documentation
+    \end{itemize}
+    \item \textbf{Deliverable:} A stable prototype with documentation.
+\end{itemize}
+
+\subsection{Milestone Outcomes vs.\ Planned Goals}
+
+\subsection{Team Contributions}
+
+% ============================================================
+\section{Conclusion and Future Work}
+
+\subsection{Summary of Achievements}
+
+\subsection{Future Directions}
+
+% ============================================================
+\newpage
+\bibliographystyle{plain}
+\bibliography{references}
+
+% ============================================================
+\newpage
+\appendix
+
+\section*{Appendix A: Code Repository}
+
+\section*{Appendix B: Database}
+
+\section*{Appendix C: ReadMe}
+
+\end{document}
