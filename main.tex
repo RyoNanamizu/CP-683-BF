@@ -71,32 +71,36 @@ Project AIVS (Anonymous Identification Verification System) is a cryptographic e
 \section{Problem Motivation}
 
 \subsection{Problem Statement}
-In modern digital communication, there is a clear tension between authenticity and anonymity. As concerns around surveillance and data breaches continue to grow, users increasingly expect systems that can protect their identity. At the same time, communication still needs to remain trustworthy, meaning that messages should be verifiable and accountable.
+In modern digital communication, there is always a trade-off between authenticity and anonymity. As more and more users are concerned about surveillance and data breaches, a system that can protect user identity becomes more and more important. In the meanwhile, verifiability and accountability of message are still crucial factors for the trustworthiness of the digital communication.
 
-In practice, most existing solutions tend to favor one side over the other rather than addressing both at once. For example, systems such as OpenPGP or S/MIME are built on Public Key Infrastructure (PKI), where digital signatures are tied to a long-term identity. This makes it possible to verify the origin of a message and ensures non-repudiation. However, it also means that every signed message can be traced back to the same user, which limits anonymity in real-world use.
+However, most of the existing solutions tend to compromise one side over the other instead of addressing both at the same time. 
 
-On the other hand, anonymous communication systems, such as those based on Tor, are designed to hide user identity. These systems are effective from a privacy perspective, but they introduce a different problem. Since there is no strong notion of identity, it becomes difficult to verify who actually authored a message. This opens the door to impersonation and Sybil attacks, and it also prevents users from later proving authorship when needed. This limitation becomes particularly important in scenarios such as whistleblowing or dispute resolution, where both anonymity and credibility are required.
+OpenPGP or S/MIME are examples of Public Key Infrastructure (PKI), where digital signatures are tied to a long-term identity. This mechanism ensures the verifiability of the original message and non-repudiation, but it also limits anonymity as every signed message can be traced back to the user. This demonstrates a typical trade-off between authenticity and anonymity in the real-world scenario.
 
-There is also a practical concern related to key management. In many cryptographic schemes, including those designed for anonymity like ring signatures, private keys are still handled in software. This makes them vulnerable to common attack vectors such as memory inspection or malware, which can ultimately compromise the system.
+In terms of anonymous communication systems, those Tor–based systems are designed to hide user identity. These systems focus effectively on a privacy perspective, but they also introduce the difficulty of verification for the authorized message sender as there is no sign of identity. This increases the risk of impersonation and Sybil attacks, and it also prevents users from later proving authorship when needed. This limitation is essential to be addressed under scenarios like whistleblowing or dispute resolution, where both anonymity and credibility are required.
 
-Overall, these observations suggest that current approaches do not fully address the combined need for privacy and accountability. What is missing is a mechanism that allows messages to remain unlinkable by default, while still giving the original sender the ability to reveal authorship later in a controlled and verifiable way, without relying on a third party.
+Another problem related to key management is that private keys are still handled in software in many cryptographic schemes, including those designed for anonymity like ring signatures. This deficit significantly compromises the system and makes it exposed to common attack vectors such as memory inspection or malware.
+
+Overall, these existing schemas suggest the need for a solution that can fully ensure both privacy and accountability. To address this gap, a mechanism that allows messages to remain unlinkable by default, while still giving the original sender the ability to reveal authorship later in a controlled and verifiable way, without relying on a third party, is introduced in this project.
 
 \subsection{Objectives}
-The main goal of this project is to design a system that separates the act of signing a message from the act of revealing identity, while still maintaining both security and practical usability. To guide the design, the following objectives are defined:
+The main goal of this project is to design a system that separates the act of signing a message from the act of revealing identity, while still maintaining both security and practical usability. 
 
-\begin{description}[style=multiline, leftmargin=3cm, font=\bfseries]
-    \item[Objective A: Hardware-Isolated Key Derivation] \hfill \\
+To guide the design, the following objectives are defined:
+
+\begin{itemize}[label=\textbf{Objective \Alph*:}]
+    \item \textbf{Hardware-Isolated Key Derivation} \\
     The system uses the WebAuthn PRF extension to derive one-time signing keys ($OTK$) with the help of a hardware security device. By doing so, sensitive key material does not leave the hardware boundary, which helps reduce the risk of key exposure even if the host environment is not fully trusted.
-
-    \item[Objective B: Nested Ring Signature Construction] \hfill \\
+    
+    \item \textbf{Nested Ring Signature Construction} \\
     A two-layer ring signature scheme is introduced using a 1-of-$N$ structure (with $N = 8$). This allows a message to be verified as valid while keeping the actual signer indistinguishable from other members of the group.
-
-    \item[Objective C: Selective Disclosure Mechanism] \hfill \\
+    
+    \item \textbf{Selective Disclosure Mechanism} \\
     The system supports a challenge-response process that allows the original sender to prove authorship when necessary. This is achieved through an encrypted proof ($Sig_{inner}$), which can only be accessed using a hardware-derived secret. As a result, identity disclosure remains entirely under the control of the sender.
-
-    \item[Objective D: Practical Performance] \hfill \\
-    Since the system is intended for use in a browser environment, performance is also taken into account. The implementation aims to keep cryptographic operations efficient enough to support typical user interactions without noticeable delay.
-\end{description}
+    
+    \item \textbf{Practical Performance} \\
+    Since the system is intended for use in a browser environment, performance is also taken into account. In the meanwhile, a non-delay user interaction is guaranteed by keeping cryptographic operations efficient.
+\end{itemize}
 
 \section{System Overview and Workflow}
 
