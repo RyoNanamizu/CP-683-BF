@@ -88,19 +88,21 @@ The main goal of this project is to design a system that separates the act of si
 
 To guide the design, the following objectives are defined:
 
-\begin{itemize}[label=\textbf{Objective \Alph*:}]
-    \item \textbf{Hardware-Isolated Key Derivation} \\
+
+\begin{itemize}
+    \item{Objective A: Hardware-Isolated Key Derivation} \\
     The system uses the WebAuthn PRF extension to derive one-time signing keys ($OTK$) with the help of a hardware security device. By doing so, sensitive key material does not leave the hardware boundary, which helps reduce the risk of key exposure even if the host environment is not fully trusted.
     
-    \item \textbf{Nested Ring Signature Construction} \\
+    \item{Objective B: Nested Ring Signature Construction} \\
     A two-layer ring signature scheme is introduced using a 1-of-$N$ structure (with $N = 8$). This allows a message to be verified as valid while keeping the actual signer indistinguishable from other members of the group.
     
-    \item \textbf{Selective Disclosure Mechanism} \\
+    \item{Objective C: Selective Disclosure Mechanism} \\
     The system supports a challenge-response process that allows the original sender to prove authorship when necessary. This is achieved through an encrypted proof ($Sig_{inner}$), which can only be accessed using a hardware-derived secret. As a result, identity disclosure remains entirely under the control of the sender.
     
-    \item \textbf{Practical Performance} \\
+    \item{Objective D: Practical Performance} \\
     Since the system is intended for use in a browser environment, performance is also taken into account. In the meanwhile, a non-delay user interaction is guaranteed by keeping cryptographic operations efficient.
 \end{itemize}
+
 
 \section{System Overview and Workflow}
 
