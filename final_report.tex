@@ -67,7 +67,7 @@
 \thispagestyle{empty}
 
 \begin{abstract}
-This report outlines the engineering implementation of a privacy-preserving messaging platform that decouples message integrity from identity revelation. Leveraging Yubikey hardware PRF and nested Ring Signatures, the system allows users to send undeniable, tamper-proof messages anonymously, with the exclusive capability to retroactively prove authorship. The project adopts an Agile methodology, utilizing React/TypeScript for the frontend and Node.js for the backend.
+    This report outlines the engineering implementation of a privacy-preserving messaging platform that decouples message integrity from identity revelation. Leveraging Yubikey hardware PRF and nested Ring Signatures, the system allows users to send undeniable, tamper-proof messages anonymously, with the exclusive capability to retroactively prove authorship. The project adopts an Agile methodology, utilizing React/TypeScript for the frontend and Node.js for the backend.
 \end{abstract}
 \newpage
 
@@ -82,7 +82,7 @@ This report outlines the engineering implementation of a privacy-preserving mess
 \subsection{Problem Statement}
 In modern digital communication, there is always a trade-off between authenticity and anonymity. As more and more users are concerned about surveillance and data breaches, a system that can protect user identity becomes more and more important. In the meanwhile, verifiability and accountability of message are still crucial factors for the trustworthiness of the digital communication.
 
-However, most of the existing solutions tend to compromise one side over the other instead of addressing both at the same time. 
+However, most of the existing solutions tend to compromise one side over the other instead of addressing both at the same time.
 
 OpenPGP or S/MIME are examples of Public Key Infrastructure (PKI), where digital signatures are tied to a long-term identity. This mechanism ensures the verifiability of the original message and non-repudiation, but it also limits anonymity as every signed message can be traced back to the user. This demonstrates a typical trade-off between authenticity and anonymity in the real-world scenario.
 
@@ -93,23 +93,23 @@ Another problem related to key management is that private keys are still handled
 Overall, these existing schemas suggest the need for a solution that can fully ensure both privacy and accountability. To address this gap, a mechanism that allows messages to remain unlinkable by default, while still giving the original sender the ability to reveal authorship later in a controlled and verifiable way, without relying on a third party, is introduced in this project.
 
 \subsection{Objectives}
-The main goal of this project is to design a system that separates the act of signing a message from the act of revealing identity, while still maintaining both security and practical usability. 
+The main goal of this project is to design a system that separates the act of signing a message from the act of revealing identity, while still maintaining both security and practical usability.
 
 To guide the design, the following objectives are defined:
 
 
 \begin{itemize}
     \item{Objective A: Hardware-Isolated Key Derivation} \\
-    The system uses the WebAuthn PRF extension to derive one-time signing keys ($OTK$) with the help of a hardware security device. By doing so, sensitive key material does not leave the hardware boundary, which helps reduce the risk of key exposure even if the host environment is not fully trusted.
-    
+          The system uses the WebAuthn PRF extension to derive one-time signing keys ($OTK$) with the help of a hardware security device. By doing so, sensitive key material does not leave the hardware boundary, which helps reduce the risk of key exposure even if the host environment is not fully trusted.
+
     \item{Objective B: Nested Ring Signature Construction} \\
-    A two-layer ring signature scheme is introduced using a 1-of-$N$ structure (with $N = 8$). This allows a message to be verified as valid while keeping the actual signer indistinguishable from other members of the group.
-    
+          A two-layer ring signature scheme is introduced using a 1-of-$N$ structure (with $N = 8$). This allows a message to be verified as valid while keeping the actual signer indistinguishable from other members of the group.
+
     \item{Objective C: Selective Disclosure Mechanism} \\
-    The system supports a challenge-response process that allows the original sender to prove authorship when necessary. This is achieved through an encrypted proof ($Sig_{inner}$), which can only be accessed using a hardware-derived secret. As a result, identity disclosure remains entirely under the control of the sender.
-    
+          The system supports a challenge-response process that allows the original sender to prove authorship when necessary. This is achieved through an encrypted proof ($Sig_{inner}$), which can only be accessed using a hardware-derived secret. As a result, identity disclosure remains entirely under the control of the sender.
+
     \item{Objective D: Practical Performance} \\
-    Since the system is intended for use in a browser environment, performance is also taken into account. In the meanwhile, a non-delay user interaction is guaranteed by keeping cryptographic operations efficient.
+          Since the system is intended for use in a browser environment, performance is also taken into account. In the meanwhile, a non-delay user interaction is guaranteed by keeping cryptographic operations efficient.
 \end{itemize}
 
 \subsection{Scope and Limitations}
@@ -171,12 +171,12 @@ The system follows a \textbf{Thick Client, Thin Server} architecture. The server
 \begin{enumerate}
     \item \textbf{Setup:} Generate One-Time Key ($OTK$) via Yubikey. Generate 7 Fake Keys ($FK_{1...7}$).
     \item \textbf{Inner Layer (The Proof):}
-    $$ Sig_{inner} = RingSign(Message, \{OTK, FK_{1...7}\}) $$
-    $$ Key_{proof} = KDF(PRF_{Yubikey}(Hash(OTK))) $$
-    $$ Proof = Encrypt_{AES-GCM}(Sig_{inner}, Key_{proof}) $$
-    where the hash of the $OTK$ is used as a salt to bind the proof key to the one-time signing key.
+          $$ Sig_{inner} = RingSign(Message, \{OTK, FK_{1...7}\}) $$
+          $$ Key_{proof} = KDF(PRF_{Yubikey}(Hash(OTK))) $$
+          $$ Proof = Encrypt_{AES-GCM}(Sig_{inner}, Key_{proof}) $$
+          where the hash of the $OTK$ is used as a salt to bind the proof key to the one-time signing key.
     \item \textbf{Outer Layer (The Transmission):}
-    $$ Sig_{outer} = RingSign(Message || Hash(Sig_{inner}), \{OTK, FK_{1...7}\}) $$
+          $$ Sig_{outer} = RingSign(Message || Hash(Sig_{inner}), \{OTK, FK_{1...7}\}) $$
     \item \textbf{Verification:} Upon decryption, the Linkable Tag of $Sig_{inner}$ must equal the Linkable Tag of $Sig_{outer}$.
 \end{enumerate}
 
@@ -205,7 +205,7 @@ The system follows a \textbf{Thick Client, Thin Server} architecture. The server
 \subsection{Data Flow Diagram}
 \begin{enumerate}
     \item \textbf{Registration:} None required for the messaging protocol itself (stateless). Optional username registration maps public handles to WebAuthn Credential IDs for routing.
-    \item \textbf{Signing:} All cryptographic operations occur in the browser memory. The Yubikey is accessed via \texttt{navigator.credentials.get(\{ prf: ... \})}.
+    \item \textbf{Signing:} All cryptographic operations occur in the browser memory. The Yubikey is accessed via \texttt{navigator.credentials.get(\char123 prf: ... \char125)}.
 \end{enumerate}
 
 \subsection{Database Schema}
@@ -223,13 +223,149 @@ The system follows a \textbf{Thick Client, Thin Server} architecture. The server
 
 \subsection{Cryptography Module}
 
+This module implements the core cryptographic operations. The core functions of this module are implements of a LRS based on Ristretto255 and Ed25519 curves. We can divided the module into four main components: core cryptographic implementation, key management, serialization tools and utility Functions.
+
+\paragraph{Core Cryptographic Implementation} The core functionality of the part revolves around LRS, which allows a user to sign a message anonymously on behalf of a group (ring) while providing a way to "link" signatures if the same member signs multiple times.
+
+\begin{itemize}
+    \item \textbf{Data Structures}: It defines \texttt{LRSSignature} and \texttt{LRSSignatureRaw} interfaces to store signature components: \texttt{c0} (initial hash), \texttt{r} (responses), \texttt{I} (linkability tag/key image), and \texttt{ring} (public keys).
+    \item \textbf{Signature Generation}:
+          \begin{itemize}
+              \item \texttt{generateLRS}: Generates a signature given a message, a set of public keys, the signer's index, and the signer's private key.
+              \item \texttt{generateLRSWithoutFakeKeys}: A helper that automatically generates random ``fake'' keys to fill the ring, simplifying the signing process for a single user.
+          \end{itemize}
+    \item \textbf{Verification}:
+          \begin{itemize}
+              \item \texttt{verifyLRS}: Validates the signature by reconstructing the hash chain across the ring and checking if it matches the provided \texttt{c0}.
+          \end{itemize}
+\end{itemize}
+
+\paragraph{Key Management} This part provides methods for managing cryptographic keys using the Ristretto255 curve:
+
+\begin{itemize}
+    \item \textbf{\texttt{generateKeyPair}}: Creates a public/private key pair, optionally from a provided seed for deterministic generation.
+    \item \textbf{\texttt{validatePublicKey}}: Verifies that a specific public key corresponds to a given private key.
+\end{itemize}
+
+\paragraph{Serialization Tools} To facilitate data transmission and storage, the part includes utilities to convert signature objects to and from byte formats.
+
+\begin{itemize}
+    \item \textbf{\texttt{LRSToBytes}}: Serializes an \texttt{LRSSignature} object into a \texttt{Uint8Array}.
+    \item \textbf{\texttt{bytesToLRS} / \texttt{bytesToRawLRS}}: Deserializes a byte array back into a structured signature object.
+\end{itemize}
+
+\paragraph{Utility Functions}
+
+\begin{itemize}
+    \item \textbf{Hashing}: Includes \texttt{sha256} for standard data hashing, \texttt{hashToScalar} for curve-specific scalar generation, and \texttt{H\_p} (Hash-to-Curve) for mapping data to a point on the Ristretto255 curve.
+    \item \textbf{Data Conversion}: Exports standard utilities like \texttt{hexToBytes} and \texttt{bytesToHex} for handling hexadecimal strings.
+    \item \textbf{Comparison}: \texttt{uint8ArrayEquals} for comparing two byte arrays for equality.
+\end{itemize}
+
+\paragraph{Conclusion} In conclusion, the cryptography module is designed to be efficient and secure, ensuring that all operations are performed locally on the client side with the assistance of the Yubikey, while the server remains a passive relay that handles only opaque data blobs.
+
 \subsection{YubiKey Integration via WebAuthn PRF}
+
+This component handles the interaction with the YubiKey hardware token using the WebAuthn API, specifically leveraging the PRF extension to derive one-time keys for signing and encryption. This is the main component that ensures the security of the key material by keeping it within the hardware boundary. For its implementation, it can be divided into two different parts:
+
+\paragraph{WebAuthn and Hardware Key Derivation}
+The system utilizes the \textbf{WebAuthn PRF \\ (Pseudo-Random Function) extension} to securely derive cryptographic keys from the user's hardware authenticator (e.g., TouchID, FaceID, or YubiKey) rather than storing private keys in plain text.
+
+\begin{itemize}
+    \item \textbf{\texttt{getCredential}}: Triggers the \texttt{navigator.credentials.get} API with PRF extensions enabled to fetch hardware-backed credentials.
+    \item \textbf{\texttt{generateKeyWithPRF}}: Uses the derived key from the hardware as a seed to generate deterministic Ristretto255 asymmetric key pairs.
+\end{itemize}
+
+\paragraph{Cryptographic MessagePack Processing}
+This is the core privacy logic that implements Linkable Ring Signatures (LRS) to ensure anonymity and verifiability.
+
+\begin{itemize}
+    \item \textbf{\texttt{getMessagePack}}: Orchestrates the creation of a secure message pack. It combines the payload with a timestamp/nonce, generates an \textit{internal} LRS, encrypts it via AES-GCM, and wraps it in an \textit{external} LRS.
+    \item \textbf{\texttt{ValidateMessagePack}}: Checks metadata versioning and verifies the external ring signature to ensure message integrity.
+    \item \textbf{\texttt{getProofForReceiver}}: Enables the receiver to attempt decryption of the AES-GCM ciphertext using their own derived keys to verify the sender.
+\end{itemize}
 
 \subsection{Backend API}
 
 \subsection{Frontend UI}
 
-\subsection{End-to-End Flow: Alice $\rightarrow$ Bob $\rightarrow$ Reveal}
+The frontend project is structured as a Single-Page Application (SPA). The overall architecture can be summarized as: \textbf{Single-Page Entry + Authentication Gateway + Signing Workbench + Data Request Utility Layer}.
+In terms of implementation style, it follows a React functional layered architecture, with the core business logic centered around WebAuthn authentication and cryptographic signing workflows.
+
+\paragraph{Application Entry Layer}
+\begin{itemize}[leftmargin=2em]
+    \item \texttt{index.html}: Provides the \texttt{root} container and loads \texttt{/src/main.tsx}.
+    \item \texttt{src/main.tsx}: Creates the React Root, injects \texttt{StrictMode}, and mounts the application.
+\end{itemize}
+
+\paragraph{Application Shell Layer}
+\begin{itemize}[leftmargin=2em]
+    \item \texttt{src/App.tsx}: The application shell component; currently lightweight, primarily responsible for rendering the login wrapper component.
+    \item \texttt{src/App.css}: Global base styles (root container and heading styles).
+\end{itemize}
+
+\paragraph{Authentication and Session Layer}
+\begin{itemize}[leftmargin=2em]
+    \item \texttt{src/login.tsx}: The primary business entry point, responsible for fetching registration/login challenges, invoking WebAuthn, managing session tokens, and switching the UI post-login.
+    \item Supports Message Pack file imports, serving as the bridge between the authentication domain and the business domain.
+\end{itemize}
+
+\paragraph{Business Feature Layer (Signing and Verification)}
+\begin{itemize}[leftmargin=2em]
+    \item \texttt{src/Sign.tsx}: An aggregation layer for the signing workbench, using a collapse panel to organize features:
+          \begin{itemize}[leftmargin=2em]
+              \item Create new signed messages
+              \item Message Pack list
+              \item Received/Sent verification request lists
+          \end{itemize}
+    \item \texttt{src/Message.tsx}: List details and operations layer, responsible for:
+          \begin{itemize}[leftmargin=2em]
+              \item Message Pack detail display and local validation
+              \item File export
+              \item Ownership transfer
+              \item Sending identity confirmation requests
+              \item Request verification/rejection workflows
+          \end{itemize}
+\end{itemize}
+
+\paragraph{Domain and Infrastructure Layer}
+\begin{itemize}[leftmargin=2em]
+    \item \texttt{src/utils.ts}: The core utility layer, handling API communication, cryptographic process encapsulation, authentication header assembly, and type definitions.
+    \item This file also provides Message Pack construction and validation logic, serving as a critical dependency for upper-layer components.
+\end{itemize}
+
+\paragraph{Reserved Layer}
+\begin{itemize}[leftmargin=2em]
+    \item \texttt{src/constants.ts}: Currently empty; can serve as a unified entry point for constants in the future.
+    \item \texttt{src/assets/}: Currently stores static resources (e.g., \texttt{react.svg}).
+\end{itemize}
+
+\paragraph{Rendering Flow} This application rendered in this flow: \\
+\texttt{index.html} $\rightarrow$ \texttt{main.tsx} $\rightarrow$ \texttt{App.tsx} $\rightarrow$ \texttt{login.tsx} $\rightarrow$ \texttt{Sign.tsx} $\rightarrow$ \texttt{Message.tsx}
+
+\paragraph{State Flow}
+The project relies primarily on React local state (\texttt{useState} or \texttt{useEffect} \\ or \texttt{useCallback}); no global state management library is introduced.
+Session state is persisted via \texttt{sessionStorage}, and user state is restored via session APIs after a refresh.
+
+\paragraph{Data Flow}
+UI components call functions in \texttt{src/utils.ts}, and the utility layer performs unified access to the backend \texttt{/api}.
+In the development environment, Vite proxies and forwards requests to local backend services.
+
+\paragraph{Dependency Boundaries}
+\begin{itemize}[leftmargin=2em]
+    \item UI and Interaction: React + Ant Design
+    \item Shared Types and Cryptography: \texttt{@repo/shared}
+    \item Build and Development: Vite + TypeScript + ESLint
+\end{itemize}
+
+\paragraph{Strengths}
+\begin{itemize}[leftmargin=2em]
+    \item Clear Layering: Distinct boundaries between page orchestration and infrastructure capabilities.
+    \item Comprehensive Typing: Request/response types are centrally defined in the utility layer.
+    \item Complete Business Loop: Covers core processes including login, signing, requesting, verification, and import/export.
+\end{itemize}
+
+\subsection{End-to-End Flow: Alice \texorpdfstring{$\rightarrow$}{--->} Bob \texorpdfstring{$\rightarrow$}{--->} Reveal}
 The system involves three primary roles: the Sender, the Recipient, and a Backend Server, with a YubiKey hardware token participating in cryptographic operations. Both the Sender and the Recipient interact with the system through a web browser, while the backend server functions solely as a message relay and storage service.
 
 All cryptographic operations are performed locally on the client side with the assistance of the YubiKey. The server does not generate, store, or process private keys, and only handles opaque data blobs, including messages, signatures, and encrypted proofs. The YubiKey is used to provide hardware-bound PRF outputs that participate in one-time key derivation and proof encryption, without exposing secret material to the browser or operating system.
@@ -262,11 +398,11 @@ If identity verification is later requested, the Recipient sends the original me
 \begin{itemize}
     \item \textbf{Goal:} Validate WebAuthn and Yubikey PRF behavior in the Chrome/Firefox browser.
     \item \textbf{Tasks:}
-    \begin{itemize}
-        \item Test WebAuthn registration and authentication process in Chrome/Firefox browser
-        \item Validate PRF output by using identical salts
-        \item Derive AES keys from PRF output
-    \end{itemize}
+          \begin{itemize}
+              \item Test WebAuthn registration and authentication process in Chrome/Firefox browser
+              \item Validate PRF output by using identical salts
+              \item Derive AES keys from PRF output
+          \end{itemize}
     \item \textbf{Deliverable:} A minimal browser-based script that inputs a salt and outputs a consistent AES key using a Yubikey.
 \end{itemize}
 
@@ -274,12 +410,12 @@ If identity verification is later requested, the Recipient sends the original me
 \begin{itemize}
     \item \textbf{Goal:} Implement Linkable Ring Signatures in TypeScript/WASM.
     \item \textbf{Tasks:}
-    \begin{itemize}
-        \item Implement a one-time key from WebAuthn
-        \item Implement linkable ring signatures (1-of-8) in Typescript/WASM
-        \item Implement linkability tag generation and verification
-        \item Unit tests for signing, verification, and tag
-    \end{itemize}
+          \begin{itemize}
+              \item Implement a one-time key from WebAuthn
+              \item Implement linkable ring signatures (1-of-8) in Typescript/WASM
+              \item Implement linkability tag generation and verification
+              \item Unit tests for signing, verification, and tag
+          \end{itemize}
     \item \textbf{Deliverable:} Unit tests proving 1-of-8 signing and verification, and tag linking.
 \end{itemize}
 
@@ -287,12 +423,12 @@ If identity verification is later requested, the Recipient sends the original me
 \begin{itemize}
     \item \textbf{Goal:} Message transport and basic user interaction.
     \item \textbf{Tasks:}
-    \begin{itemize}
-        \item Implement Node.js backend for storing and retrieving message
-        \item Design message, signature, and proof data format
-        \item Design and implement a React frontend user interface for composing and viewing messages
-        \item Integrate WebAuthn for user login
-    \end{itemize}
+          \begin{itemize}
+              \item Implement Node.js backend for storing and retrieving message
+              \item Design message, signature, and proof data format
+              \item Design and implement a React frontend user interface for composing and viewing messages
+              \item Integrate WebAuthn for user login
+          \end{itemize}
     \item \textbf{Deliverable:} Node.js API to store/retrieve message blobs. React UI to compose messages.
 \end{itemize}
 
@@ -300,12 +436,12 @@ If identity verification is later requested, the Recipient sends the original me
 \begin{itemize}
     \item \textbf{Goal:} Connect crypto with UI and demonstrate end-to-end flow.
     \item \textbf{Tasks:}
-    \begin{itemize}
-        \item Integrate ring signature into the message
-        \item Integrate proof encryption and decryption using YubiKey PRF
-        \item Implement complete end-to-end flow from proof request, decryption, and verification
-        \item Validate and test the flow
-    \end{itemize}
+          \begin{itemize}
+              \item Integrate ring signature into the message
+              \item Integrate proof encryption and decryption using YubiKey PRF
+              \item Implement complete end-to-end flow from proof request, decryption, and verification
+              \item Validate and test the flow
+          \end{itemize}
     \item \textbf{Deliverable:} End-to-End flow: Alice sends anonymous msg $\rightarrow$ Bob requests proof $\rightarrow$ Alice reveals $\rightarrow$ Bob verifies.
 \end{itemize}
 
@@ -313,11 +449,11 @@ If identity verification is later requested, the Recipient sends the original me
 \begin{itemize}
     \item \textbf{Goal:} Testing the system and prepare for evaluation and document.
     \item \textbf{Tasks:}
-    \begin{itemize}
-        \item Bug fixes and handle edge-cases if persist
-        \item Security, threat, and performance review
-        \item Documentation
-    \end{itemize}
+          \begin{itemize}
+              \item Bug fixes and handle edge-cases if persist
+              \item Security, threat, and performance review
+              \item Documentation
+          \end{itemize}
     \item \textbf{Deliverable:} A stable prototype with documentation.
 \end{itemize}
 
@@ -330,8 +466,80 @@ If identity verification is later requested, the Recipient sends the original me
 
 \subsection{Summary of Achievements}
 
+The objectives achieved by the project so far can be summarized into the following six levels:
+
+\begin{enumerate}[leftmargin=2em]
+    \item \textbf{Established a Comprehensive Full-stack Monorepo Architecture}
+          \begin{itemize}[leftmargin=2em]
+              \item Organized a three-tier structure (frontend, backend, and shared libraries) using pnpm workspaces.
+              \item Unified use of TypeScript across both frontend and backend, with reusable shared types and utility functions.
+              \item Supported parallel development and unified builds (root directory scripts have been configured).
+          \end{itemize}
+    \item \textbf{Implemented the Main WebAuthn-based Authentication Workflow}
+          \begin{itemize}[leftmargin=2em]
+              \item Backend provides endpoints for registration challenges, registration completion, login challenges, login completion, and session queries.
+              \item Frontend completed the implementation of registration and login flows using the browser's WebAuthn API.
+              \item Implemented subsequent interface authentication via session tokens (Header or Bearer).
+              \item Supported session persistence and recovery (session can be retrieved after page refresh).
+          \end{itemize}
+
+    \item \textbf{Implemented the Business Closed-loop for Message Packs as Transferable Assets}
+          \begin{itemize}[leftmargin=2em]
+              \item Supported the creation of Message Packs (Content + Memo + CredentialId).
+              \item Supported querying by ID and by username lists.
+              \item Supported ownership transfer (change of owner).
+              \item Data models and indexes are persisted in the database, providing basic retrieval performance.
+          \end{itemize}
+
+    \item \textbf{Implemented Identity Validation Request Workflows}
+          \begin{itemize}[leftmargin=2em]
+              \item Supported initiating requests (requester $\rightarrow$ responder).
+              \item Supported querying "Requests I Sent" and "Requests I Received."
+              \item Responders can execute respond/refuse actions;
+              \item Requesters can write final results: Passed/Failed/Error.
+              \item Backend implemented state machine constraints and protection against illegal state transitions.
+          \end{itemize}
+
+    \item \textbf{Implemented Cryptographic Message Signing and Verification (Shared Library + Frontend)}
+          \begin{itemize}[leftmargin=2em]
+              \item Implemented signing, serialization, and verification based on ristretto255 / linkable ring signature (LRS).
+              \item Used PRF for key derivation combined with AES-GCM for encapsulating internal proofs.
+              \item Frontend supports generating Message Packs, verifying signatures, importing/exporting Message Packs, and triggering the verification process.
+          \end{itemize}
+
+    \item \textbf{Implemented a Deployable and Runnable Local Environment}
+          \begin{itemize}[leftmargin=2em]
+              \item Orchestrated PostgreSQL, API, and Nginx using docker-compose.
+              \item Nginx supports HTTP-to-HTTPS redirection and reverse proxying for /api.
+              \item init.sql includes core table structures and indexes for initialization capabilities.
+              \item API integrates Swagger documentation (/docs) and healthz/readyz monitoring endpoints.
+          \end{itemize}
+\end{enumerate}
+
 \subsection{Future Directions}
 
+We would contribute to the project in the future by implementing the following features:
+
+\begin{enumerate}[leftmargin=2em]
+    \item \textbf{UI Enhancements and User Experience Improvements}
+          \begin{itemize}[leftmargin=2em]
+              \item Implement a more intuitive and visually appealing user interface for message composition and verification.
+              \item Add real-time notifications for incoming messages and verification requests.
+              \item Provide better error handling and user feedback during cryptographic operations.
+          \end{itemize}
+
+    \item \textbf{Bug catching and Fixing}
+          \begin{itemize}[leftmargin=2em]
+              \item Conduct thorough testing to identify and fix any bugs or edge cases that may arise during usage.
+              \item Implement additional unit and integration tests to ensure the robustness of the system.
+          \end{itemize}
+
+    \item \textbf{Performance Optimization}
+          \begin{itemize}[leftmargin=2em]
+              \item Optimize cryptographic operations to reduce latency, especially for larger messages or higher volumes of messages.
+              \item Explore caching strategies for frequently used keys or signatures to improve performance.
+          \end{itemize}
+\end{enumerate}
 % ============================================================
 \newpage
 \bibliographystyle{plain}
