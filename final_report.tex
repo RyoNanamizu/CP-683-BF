@@ -178,7 +178,7 @@ The system follows a \textbf{Thick Client, Thin Server} architecture. The server
 \subsection{Data Flow Diagram}
 \begin{enumerate}
     \item \textbf{Registration:} None required for the messaging protocol itself (stateless). Optional username registration maps public handles to WebAuthn Credential IDs for routing.
-    \item \textbf{Signing:} All cryptographic operations occur in the browser memory. The Yubikey is accessed via \texttt{navigator.credentials.get(\{ prf: ... \})}.
+    \item \textbf{Signing:} All cryptographic operations occur in the browser memory. The Yubikey is accessed via \texttt{navigator.credentials.get(\char123 prf: ... \char125)}.
 \end{enumerate}
 
 \subsection{Database Schema}
@@ -262,9 +262,83 @@ This is the core privacy logic that implements Linkable Ring Signatures (LRS) to
 
 \subsection{Frontend UI}
 
+The frontend project is structured as a Single-Page Application (SPA). The overall architecture can be summarized as: \textbf{Single-Page Entry + Authentication Gateway + Signing Workbench + Data Request Utility Layer}.
+In terms of implementation style, it follows a React functional layered architecture, with the core business logic centered around WebAuthn authentication and cryptographic signing workflows.
 
+\paragraph{Application Entry Layer}
+\begin{itemize}[leftmargin=2em]
+    \item \texttt{index.html}: Provides the \texttt{root} container and loads \texttt{/src/main.tsx}.
+    \item \texttt{src/main.tsx}: Creates the React Root, injects \texttt{StrictMode}, and mounts the application.
+\end{itemize}
 
-\subsection{End-to-End Flow: Alice $\rightarrow$ Bob $\rightarrow$ Reveal}
+\paragraph{Application Shell Layer}
+\begin{itemize}[leftmargin=2em]
+    \item \texttt{src/App.tsx}: The application shell component; currently lightweight, primarily responsible for rendering the login wrapper component.
+    \item \texttt{src/App.css}: Global base styles (root container and heading styles).
+\end{itemize}
+
+\paragraph{Authentication and Session Layer}
+\begin{itemize}[leftmargin=2em]
+    \item \texttt{src/login.tsx}: The primary business entry point, responsible for fetching registration/login challenges, invoking WebAuthn, managing session tokens, and switching the UI post-login.
+    \item Supports Message Pack file imports, serving as the bridge between the authentication domain and the business domain.
+\end{itemize}
+
+\paragraph{Business Feature Layer (Signing and Verification)}
+\begin{itemize}[leftmargin=2em]
+    \item \texttt{src/Sign.tsx}: An aggregation layer for the signing workbench, using a collapse panel to organize features:
+          \begin{itemize}[leftmargin=2em]
+              \item Create new signed messages
+              \item Message Pack list
+              \item Received/Sent verification request lists
+          \end{itemize}
+    \item \texttt{src/Message.tsx}: List details and operations layer, responsible for:
+          \begin{itemize}[leftmargin=2em]
+              \item Message Pack detail display and local validation
+              \item File export
+              \item Ownership transfer
+              \item Sending identity confirmation requests
+              \item Request verification/rejection workflows
+          \end{itemize}
+\end{itemize}
+
+\paragraph{Domain and Infrastructure Layer}
+\begin{itemize}[leftmargin=2em]
+    \item \texttt{src/utils.ts}: The core utility layer, handling API communication, cryptographic process encapsulation, authentication header assembly, and type definitions.
+    \item This file also provides Message Pack construction and validation logic, serving as a critical dependency for upper-layer components.
+\end{itemize}
+
+\paragraph{Reserved Layer}
+\begin{itemize}[leftmargin=2em]
+    \item \texttt{src/constants.ts}: Currently empty; can serve as a unified entry point for constants in the future.
+    \item \texttt{src/assets/}: Currently stores static resources (e.g., \texttt{react.svg}).
+\end{itemize}
+
+\paragraph{Rendering Flow} This application rendered in this flow: \\
+\texttt{index.html} $\rightarrow$ \texttt{main.tsx} $\rightarrow$ \texttt{App.tsx} $\rightarrow$ \texttt{login.tsx} $\rightarrow$ \texttt{Sign.tsx} $\rightarrow$ \texttt{Message.tsx}
+
+\paragraph{State Flow}
+The project relies primarily on React local state (\texttt{useState} or \texttt{useEffect} \\ or \texttt{useCallback}); no global state management library is introduced.
+Session state is persisted via \texttt{sessionStorage}, and user state is restored via session APIs after a refresh.
+
+\paragraph{Data Flow}
+UI components call functions in \texttt{src/utils.ts}, and the utility layer performs unified access to the backend \texttt{/api}.
+In the development environment, Vite proxies and forwards requests to local backend services.
+
+\paragraph{Dependency Boundaries}
+\begin{itemize}[leftmargin=2em]
+    \item UI and Interaction: React + Ant Design
+    \item Shared Types and Cryptography: \texttt{@repo/shared}
+    \item Build and Development: Vite + TypeScript + ESLint
+\end{itemize}
+
+\paragraph{Strengths}
+\begin{itemize}[leftmargin=2em]
+    \item Clear Layering: Distinct boundaries between page orchestration and infrastructure capabilities.
+    \item Comprehensive Typing: Request/response types are centrally defined in the utility layer.
+    \item Complete Business Loop: Covers core processes including login, signing, requesting, verification, and import/export.
+\end{itemize}
+
+\subsection{End-to-End Flow: Alice \texorpdfstring{$\rightarrow$}{--->} Bob \texorpdfstring{$\rightarrow$}{--->} Reveal}
 The system involves three primary roles: the Sender, the Recipient, and a Backend Server, with a YubiKey hardware token participating in cryptographic operations. Both the Sender and the Recipient interact with the system through a web browser, while the backend server functions solely as a message relay and storage service.
 
 All cryptographic operations are performed locally on the client side with the assistance of the YubiKey. The server does not generate, store, or process private keys, and only handles opaque data blobs, including messages, signatures, and encrypted proofs. The YubiKey is used to provide hardware-bound PRF outputs that participate in one-time key derivation and proof encryption, without exposing secret material to the browser or operating system.
