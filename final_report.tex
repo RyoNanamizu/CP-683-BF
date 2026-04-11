@@ -15,6 +15,8 @@
 \usepackage{booktabs}
 \usepackage{tabularx}
 \usepackage{listings}
+\usepackage{setspace}
+\singlespacing
 
 % Page Setup
 \geometry{left=2.5cm, right=2.5cm, top=2.5cm, bottom=2.5cm}
@@ -77,64 +79,38 @@
 % ============================================================
 \section{Introduction}
 
-\section{Problem Motivation}
+\subsection{Motivation and Problem Statement}
+In current cryptographic systems, users typically face a binary choice:
+\begin{enumerate}
+    \item \textbf{Signed Messages:} Authenticity is guaranteed, but privacy is compromised immediately (e.g., PGP).
+    \item \textbf{Anonymous Messages:} Privacy is maintained, but credibility is low, and the author cannot later claim credit or reputation for the content (e.g., Tor-based drops).
+\end{enumerate}
+There is a lack of infrastructure that supports \textit{conditional anonymity}. Where a user can speak freely now and prove they spoke later, without relying on a trusted third party.
 
-\subsection{Problem Statement}
-In modern digital communication, there is always a trade-off between authenticity and anonymity. As more and more users are concerned about surveillance and data breaches, a system that can protect user identity becomes more and more important. In the meanwhile, verifiability and accountability of message are still crucial factors for the trustworthiness of the digital communication.
-
-However, most of the existing solutions tend to compromise one side over the other instead of addressing both at the same time.
-
-OpenPGP or S/MIME are examples of Public Key Infrastructure (PKI), where digital signatures are tied to a long-term identity. This mechanism ensures the verifiability of the original message and non-repudiation, but it also limits anonymity as every signed message can be traced back to the user. This demonstrates a typical trade-off between authenticity and anonymity in the real-world scenario.
-
-In terms of anonymous communication systems, those Tor–based systems are designed to hide user identity. These systems focus effectively on a privacy perspective, but they also introduce the difficulty of verification for the authorized message sender as there is no sign of identity. This increases the risk of impersonation and Sybil attacks, and it also prevents users from later proving authorship when needed. This limitation is essential to be addressed under scenarios like whistleblowing or dispute resolution, where both anonymity and credibility are required.
-
-Another problem related to key management is that private keys are still handled in software in many cryptographic schemes, including those designed for anonymity like ring signatures. This deficit significantly compromises the system and makes it exposed to common attack vectors such as memory inspection or malware.
-
-Overall, these existing schemas suggest the need for a solution that can fully ensure both privacy and accountability. To address this gap, a mechanism that allows messages to remain unlinkable by default, while still giving the original sender the ability to reveal authorship later in a controlled and verifiable way, without relying on a third party, is introduced in this project.
-
-\subsection{Objectives}
-The main goal of this project is to design a system that separates the act of signing a message from the act of revealing identity, while still maintaining both security and practical usability.
-
-To guide the design, the following objectives are defined:
-
-
+\subsection{Project Objectives}
 \begin{itemize}
-    \item{Objective A: Hardware-Isolated Key Derivation} \\
-          The system uses the WebAuthn PRF extension to derive one-time signing keys ($OTK$) with the help of a hardware security device. By doing so, sensitive key material does not leave the hardware boundary, which helps reduce the risk of key exposure even if the host environment is not fully trusted.
-
-    \item{Objective B: Nested Ring Signature Construction} \\
-          A two-layer ring signature scheme is introduced using a 1-of-$N$ structure (with $N = 8$). This allows a message to be verified as valid while keeping the actual signer indistinguishable from other members of the group.
-
-    \item{Objective C: Selective Disclosure Mechanism} \\
-          The system supports a challenge-response process that allows the original sender to prove authorship when necessary. This is achieved through an encrypted proof ($Sig_{inner}$), which can only be accessed using a hardware-derived secret. As a result, identity disclosure remains entirely under the control of the sender.
-
-    \item{Objective D: Practical Performance} \\
-          Since the system is intended for use in a browser environment, performance is also taken into account. In the meanwhile, a non-delay user interaction is guaranteed by keeping cryptographic operations efficient.
+    \item \textbf{Objective A:} Anonymous message dispatching where the sender is mathematically hidden among a set of 7 decoys (1-of-8 Ring Signature).
+    \item \textbf{Objective B:} Integrity verification by the recipient without identity knowledge.
+    \item \textbf{Objective C:} A ``Challenge-Response'' flow where the sender can prove authorship by unlocking a cryptographic proof using their physical Yubikey.
 \end{itemize}
 
 \subsection{Scope and Limitations}
-
-\subsection{Report Structure}
+AIVS is a research prototype that is used to demonstrate the combination of cryptography with a two-party messaging system to present conditional anonymity. The system consists of anonymous message, verification, and authorship proof via a hardware based Yubikey. All important operations are performed on the client browser side, while the backend server serves as a relay and a storage service, without knowing the identity of users.
+As a prototype, there are several limitations in the current implementation:
+\begin{itemize}
+    \item \textbf{Anonymity Set Size:} The ring of public keys is fixed at 1-of-8 (one real public key and seven generated decoy ones). This is sufficient for a prototype, but is not suitable for larger schemes, which provide stronger anonymity guaranties and are more appropriate for production systems.
+    \item \textbf{Hardware Dependency:} The system specifically requires a physical hardware device named Yubikey with PRF extension support. Environments with different hardware cannot participate in the process. 
+    \item \textbf{Prototype Scope:} The implementation is not designed for production use. Such factors as: Scalability, multi-device support and account recovery are not in scope. 
+\end{itemize}
 
 % ============================================================
 \section{Background and Related Work}
-
-\subsection{Anonymous Communication Systems}
-
-Systems like mix networks and onion routing are traditional schemas for anonymous communication. One example of these schemas is Tor, the Onion Router. It is designed to reduce the ability to link communication endpoints by routing traffic through multiple relays with layered encryption. The goal of these systems is to obscure  the relationship between sender and receiver and provide network-level anonymity.
-However, message authorship cannot be addressed by ensuring anonymity at the network layer. For example, Tor-based systems can help hide where a message originates from, but they do not provide a built-in mechanism to identify who authored a message without revealing the sender's identity. As a result, these systems offer strong privacy guarantees but compromise the ability of supporting accountability or later authorship verification.
-For decentralized systems, privacy-preserving cryptographic techniques such as Zero-Knowledge Proofs (ZKPs) are proven solutions to enable verification without revealing sensitive information. For example, zk-SNARKs can keep inputs hidden while maintaining the verifiability of  the correctness of a computation or transaction. But limited by their computational overhead and complexity in interactive settings, these approaches are challenging to integrate them into low-latency, browser-based messaging systems, even though they can provide strong privacy guarantees.
-
-
-
 \subsection{Ring Signatures --- Theory and Prior Work}
 
 Rivest, Shamir, and Tauman have introduced Ring signatures which can provide a mechanism for anonymous authentication by leveraging a predefined set of public keys. This mechanism relies on a signature being generated by a signer on behalf of a group and can be verified to confirm that one of the group members signed the message without revealing the exact signer.
 Differing from group signature schemes, a trusted setup phase, a group manager, or a revocation mechanism are not required for ring signatures. So, by selecting a set of public keys, the ring can be independently constructed by the signer. This makes the scheme particularly suitable for decentralized settings.
 Linkable Ring Signature (LRS) is an important extension of this concept. In LRS schemes, each signature includes a linking tag which is often known as a key image. This tag is generated based on the signer's secret key and the public key. The purpose of this tag is to link different signatures produced by the same signer and to keep the signer’s identity secret. Because of this feature, this schema is widely used in cryptocurrency systems, as it can prevent double spending and preserve anonymity.
 In this project, this LRS is used in a different context which is establishing a verifiable relationship between two signatures generated from the same one-time key. As a result of this mechanism, a controlled disclosure workflow is generated and this workflow can demonstrate authorship by revealing additional information and preserve anonymity by default.
-
-
 
 \subsection{Hardware Security Tokens and WebAuthn PRF}
 
@@ -143,16 +119,12 @@ The FIDO2/WebAuthn standard introduces a model to allow cryptographic operations
 A recent extension to WebAuthn is the PRF (Pseudo-Random Function) extension. In this extension, by giving an input, an output would be generated based on a credential-bound secret and it is accessible to the application. The authenticator can return the PRF output while keeping the underlying secret. As a result, applications can derive high-entropy values tied to the authenticator.
 In this project, PRF outputs are used as part of the key derivation process for one-time signing keys. And they also are used for deriving symmetric keys used in proof encryption. This design creates a connection between critical cryptographic operations and the possession of a hardware authenticator, so that the reliance on software-managed long-term secrets in the browser environment can be significantly reduced.
 
-
-
 \subsection{Gap Analysis}
 There are several limitations which cannot be simultaneously addressed in current solutions according to existing systems and research approaches.
 First, a trade-off between identity and privacy. Traditional PKI-based systems like PGP or S/MIME provide strong authenticity and non-repudiation, however, a connection of signatures and long-term identities is created. Conversely, anonymous communication systems provide strong privacy but sacrifice verifiable authorship.
 Second, the integration ring signatures and linkable ring signatures with browser-based security mechanisms. Their strong anonymity properties make them widely used in specialized environments such as cryptocurrency systems or native applications, but it is difficult to integrate them into standardized browser-based security mechanisms, such as WebAuthn.
 Third, the limitation of standard ring signature constructions. Although standard ring signature constructions can ensure signer anonymity, they do not inherently support identity disclosure, as  they do not provide a built-in approach for a signer to later prove authorship.
 To address these gaps, the AIVS system combines hardware-assisted key derivation with a two-layer ring signature construction. The goal is to enable anonymous message authentication in a browser environment, while supporting a controlled and verifiable authorship disclosure process when required.
-
-
 
 % ============================================================
 \section{System Design}
@@ -209,6 +181,68 @@ The system follows a \textbf{Thick Client, Thin Server} architecture. The server
 \end{enumerate}
 
 \subsection{Database Schema}
+The database is implemented in PostgreSQL and consists of five tables. The server stores only public key in binary data type and metadata for message routing and username verification.
+\subsubsection*{Credentials}
+Stores WebAuthn registration data for each user handle.
+
+\begin{itemize}
+    \item \texttt{id} --- UUID, primary key.
+    \item \texttt{handle} --- VARCHAR(255), username.
+    \item \texttt{credential\_id} --- TEXT, unique WebAuthn credential identifier.
+    \item \texttt{public\_key} --- BYTEA, public key.
+    \item \texttt{sign\_count} --- INTEGER, count login time used with the hardware, default 0.
+    \item \texttt{transports} --- TEXT, nullable.
+    \item \texttt{created\_at} / \texttt{updated\_at} --- TIMESTAMP.
+\end{itemize}
+
+\subsubsection*{Challenges}
+Stores timeout WebAuthn challenges issued during registration and authentication process. Each challenge is used and deleted after verification.
+
+\begin{itemize}
+    \item \texttt{id} --- UUID, primary key.
+    \item \texttt{handle} --- VARCHAR(255), username.
+    \item \texttt{challenge} --- TEXT, base64url-encoded.
+    \item \texttt{challenge\_type} --- VARCHAR(50), either \texttt{registration} or \texttt{login}.
+    \item \texttt{expires\_at} --- TIMESTAMP, 10 minutes for registration, 5 minutes for login.
+    \item \texttt{created\_at} --- TIMESTAMP.
+\end{itemize}
+
+\subsubsection*{Sessions}
+Manages session tokens created after a successful WebAuthn login and its time-alive is 24 hours.
+
+\begin{itemize}
+    \item \texttt{id} --- UUID, primary key.
+    \item \texttt{handle} --- VARCHAR(255).
+    \item \texttt{session\_token} --- TEXT.
+    \item \texttt{expires\_at} --- TIMESTAMP, 24-hour TTL.
+    \item \texttt{created\_at} / \texttt{updated\_at} --- TIMESTAMP.
+\end{itemize}
+
+\subsubsection*{Message\_packs}
+Stores the JSON-serialized message payload. Ownership can be transferred between handles, with the timestamp updated on each transfer.
+
+\begin{itemize}
+    \item \texttt{id} --- UUID, primary key.
+    \item \texttt{content} --- TEXT, JSON-serialized payload.
+    \item \texttt{memo} --- TEXT, description.
+    \item \texttt{credential\_id} --- TEXT.
+    \item \texttt{owner} --- VARCHAR(255), current owner handle.
+    \item \texttt{created\_at} --- TIMESTAMP, updated on transfer.
+\end{itemize}
+
+\subsubsection*{Validation\_requests}
+Implements an identity confirmation workflow between 2 users around a message pack
+
+\begin{itemize}
+    \item \texttt{id} --- UUID, primary key.
+    \item \texttt{message\_pack\_id} --- UUID, foreign key referencing
+    \texttt{message\_packs(id)} ON DELETE CASCADE.
+    \item \texttt{requester} --- VARCHAR(255).
+    \item \texttt{responder} --- VARCHAR(255).
+    \item \texttt{status} --- VARCHAR(20), CHECK constraint enforced.
+    \item \texttt{response\_payload} --- TEXT, nullable, responder evidence.
+    \item \texttt{created\_at} / \texttt{updated\_at} --- TIMESTAMP.
+\end{itemize}
 
 % ============================================================
 \section{Implementation}
@@ -286,6 +320,45 @@ This is the core privacy logic that implements Linkable Ring Signatures (LRS) to
 \end{itemize}
 
 \subsection{Backend API}
+The backend API is implemented as a Noje.js RESTful API consisted of 4 services:
+WebAuthn service, Message pack service, Validation request service and an authentication middleware. The middleware is used to validate session tokens between API calls of message pack service and validation request services.
+
+\subsubsection*{WebAuthn Service}
+Handles YubiKey credential registration and generates session token for authentication.
+
+\begin{itemize}
+    \item \texttt{POST /register/challenge} --- Create a registration challenge for a new credential.
+    \item \texttt{POST /register/publickey} --- Final step of the registration process by storing the authenticator public key.
+    \item \texttt{POST /auth/challenge} --- Create an authentication challenge for login.
+    \item \texttt{POST /auth/session} --- Verify the challenge along with the response and generate a session token.
+    \item \texttt{GET /session} --- Returns the current authenticated session (auth required, use to test the authentication).
+\end{itemize}
+
+\subsubsection*{Message Pack Service}
+Handles creation, retrieval, and ownership transfer of message packs.
+
+\begin{itemize}
+    \item \texttt{POST /message} --- Create a new message pack.
+    \item \texttt{GET /message/by\_id/:id} --- Retrieve a message pack by UUID.
+    \item \texttt{GET /message/list/by\_username/:username} --- List all message packs owned by a given handle.
+    \item \texttt{PUT /message/by\_id/:id/owner} --- Transfer ownership of a message pack to another handle.
+\end{itemize}
+
+\subsubsection*{Validation Request Service}
+Manages the challenge-response flow between 2 users for authorship verification.
+
+\begin{itemize}
+    \item \texttt{POST /validation-requests} --- Create a new validation request for a message pack.
+    \item \texttt{GET /validation-requests/sent} --- List validation requests created by the current user.
+    \item \texttt{GET /validation-requests/received} --- List validation requests assigned to the current user.
+    \item \texttt{PUT /:id/respond} --- User submits the decrypted signature as evidence.
+    \item \texttt{PUT /:id/result} --- User finalizes the validation request after verifying the evidence.
+\end{itemize}
+
+\subsubsection*{Authentication Middleware}
+\begin{itemize}
+    \item \textbf{Auth middleware} --- Validates the session token on each protected API request.
+\end{itemize}
 
 \subsection{Frontend UI}
 
@@ -389,79 +462,6 @@ If identity verification is later requested, the Recipient sends the original me
 
 \subsection{Limitations and Edge Cases}
 
-% ============================================================
-\section{Project Management}
-
-\subsection{Agile Methodology and Sprint Summary}
-
-\subsubsection*{Sprint 0: Feasibility \& PoC (2 Weeks)}
-\begin{itemize}
-    \item \textbf{Goal:} Validate WebAuthn and Yubikey PRF behavior in the Chrome/Firefox browser.
-    \item \textbf{Tasks:}
-          \begin{itemize}
-              \item Test WebAuthn registration and authentication process in Chrome/Firefox browser
-              \item Validate PRF output by using identical salts
-              \item Derive AES keys from PRF output
-          \end{itemize}
-    \item \textbf{Deliverable:} A minimal browser-based script that inputs a salt and outputs a consistent AES key using a Yubikey.
-\end{itemize}
-
-\subsubsection*{Milestone 1: Core Cryptography Module (2 weeks)}
-\begin{itemize}
-    \item \textbf{Goal:} Implement Linkable Ring Signatures in TypeScript/WASM.
-    \item \textbf{Tasks:}
-          \begin{itemize}
-              \item Implement a one-time key from WebAuthn
-              \item Implement linkable ring signatures (1-of-8) in Typescript/WASM
-              \item Implement linkability tag generation and verification
-              \item Unit tests for signing, verification, and tag
-          \end{itemize}
-    \item \textbf{Deliverable:} Unit tests proving 1-of-8 signing and verification, and tag linking.
-\end{itemize}
-
-\subsubsection*{Milestone 2: Backend \& Basic UI (2 weeks)}
-\begin{itemize}
-    \item \textbf{Goal:} Message transport and basic user interaction.
-    \item \textbf{Tasks:}
-          \begin{itemize}
-              \item Implement Node.js backend for storing and retrieving message
-              \item Design message, signature, and proof data format
-              \item Design and implement a React frontend user interface for composing and viewing messages
-              \item Integrate WebAuthn for user login
-          \end{itemize}
-    \item \textbf{Deliverable:} Node.js API to store/retrieve message blobs. React UI to compose messages.
-\end{itemize}
-
-\subsubsection*{Milestone 3: Integration \& The ``Reveal'' Flow (2 weeks)}
-\begin{itemize}
-    \item \textbf{Goal:} Connect crypto with UI and demonstrate end-to-end flow.
-    \item \textbf{Tasks:}
-          \begin{itemize}
-              \item Integrate ring signature into the message
-              \item Integrate proof encryption and decryption using YubiKey PRF
-              \item Implement complete end-to-end flow from proof request, decryption, and verification
-              \item Validate and test the flow
-          \end{itemize}
-    \item \textbf{Deliverable:} End-to-End flow: Alice sends anonymous msg $\rightarrow$ Bob requests proof $\rightarrow$ Alice reveals $\rightarrow$ Bob verifies.
-\end{itemize}
-
-\subsubsection*{Milestone 4: Evaluation and Documentation (1 week)}
-\begin{itemize}
-    \item \textbf{Goal:} Testing the system and prepare for evaluation and document.
-    \item \textbf{Tasks:}
-          \begin{itemize}
-              \item Bug fixes and handle edge-cases if persist
-              \item Security, threat, and performance review
-              \item Documentation
-          \end{itemize}
-    \item \textbf{Deliverable:} A stable prototype with documentation.
-\end{itemize}
-
-\subsection{Milestone Outcomes vs.\ Planned Goals}
-
-\subsection{Team Contributions}
-
-% ============================================================
 \section{Conclusion and Future Work}
 
 \subsection{Summary of Achievements}
@@ -543,16 +543,22 @@ We would contribute to the project in the future by implementing the following f
 % ============================================================
 \newpage
 \bibliographystyle{plain}
-\bibliography{references}
+\begin{thebibliography}{9}
+
+\bibitem{noether2015}
+Shen Noether,
+\newblock Ring Signature Confidential Transactions for Monero,
+\newblock Cryptology {ePrint} Archive, Paper 2015/1098, 2015.
+\newblock Available at \url{https://eprint.iacr.org/2015/1098}
+
+\bibitem{webauthn3}
+Tim Cappalli, Michael B. Jones, Akshay Kumar, Emil Lundberg, and Matthew Miller,
+\newblock {Web Authentication: An API for accessing Public Key Credentials - Level 3},
+\newblock W3C Candidate Recommendation Snapshot, January 2026.
+\newblock Available at \url{https://www.w3.org/TR/webauthn-3/}
+
+\end{thebibliography}
 
 % ============================================================
-\newpage
-\appendix
-
-\section*{Appendix A: Code Repository}
-
-\section*{Appendix B: Database}
-
-\section*{Appendix C: ReadMe}
 
 \end{document}
