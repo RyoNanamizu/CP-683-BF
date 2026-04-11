@@ -499,6 +499,9 @@ From a key-management perspective, the backend does not store private signing ma
 Overall, the prototype demonstrates a credible balance between anonymity and revealability: recipients can verify message validity without immediately learning the sender's identity, while the legitimate sender retains the exclusive ability to prove authorship later through the original hardware credential. At the same time, the present version should be understood as a research prototype, where the main security contribution lies in validating the feasibility of the mechanism rather than delivering a production-ready assurance level.
 
 \subsection{Performance Analysis}
+Functional testing and backend API timing observations were conducted through the online test environment at \texttt{https://cp683.ryonanamizu.com/}. The system was accessed through a web browser, and browser developer tools were used to inspect request timing for representative backend endpoints.
+Cryptographic performance measurements, by contrast, were collected through a separate local benchmark that focused on client-side ring-signature generation, verification, message-pack construction, and proof revelation.
+
 \begin{table}[H]
     \centering
     \begin{tabular}{lccc}
@@ -514,7 +517,7 @@ Overall, the prototype demonstrates a credible balance between anonymity and rev
     \caption{Local benchmark results for the default configuration with ring size 8.}
 \end{table}
 
-To evaluate the prototype under its default anonymity-set size, a local performance benchmark was conducted with \texttt{ring size = 8}. The evaluation focused on the client-side cryptographic workflow rather than backend throughput, since message creation, signature verification, and proof revelation are the main contributors to user-perceived latency. Each metric was measured over 20 runs, and the mean, minimum, and maximum values were recorded.
+To evaluate the prototype under its default anonymity-set size, a local benchmark was conducted with \texttt{ring size = 8}. The benchmark focused on client-side cryptographic operations, and each metric was measured over 20 runs with mean, minimum, and maximum values recorded.
 
 The results show that LRS generation required an average of 39.34 ms, while LRS verification required an average of 38.81 ms. The two operations therefore have comparable costs and both remain within a few tens of milliseconds.
 
