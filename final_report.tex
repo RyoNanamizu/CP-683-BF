@@ -439,8 +439,80 @@ If identity verification is later requested, the Recipient sends the original me
 
 \subsection{Summary of Achievements}
 
+The objectives achieved by the project so far can be summarized into the following six levels:
+
+\begin{enumerate}[leftmargin=2em]
+    \item \textbf{Established a Comprehensive Full-stack Monorepo Architecture}
+          \begin{itemize}[leftmargin=2em]
+              \item Organized a three-tier structure (frontend, backend, and shared libraries) using pnpm workspaces.
+              \item Unified use of TypeScript across both frontend and backend, with reusable shared types and utility functions.
+              \item Supported parallel development and unified builds (root directory scripts have been configured).
+          \end{itemize}
+    \item \textbf{Implemented the Main WebAuthn-based Authentication Workflow}
+          \begin{itemize}[leftmargin=2em]
+              \item Backend provides endpoints for registration challenges, registration completion, login challenges, login completion, and session queries.
+              \item Frontend completed the implementation of registration and login flows using the browser's WebAuthn API.
+              \item Implemented subsequent interface authentication via session tokens (Header or Bearer).
+              \item Supported session persistence and recovery (session can be retrieved after page refresh).
+          \end{itemize}
+
+    \item \textbf{Implemented the Business Closed-loop for Message Packs as Transferable Assets}
+          \begin{itemize}[leftmargin=2em]
+              \item Supported the creation of Message Packs (Content + Memo + CredentialId).
+              \item Supported querying by ID and by username lists.
+              \item Supported ownership transfer (change of owner).
+              \item Data models and indexes are persisted in the database, providing basic retrieval performance.
+          \end{itemize}
+
+    \item \textbf{Implemented Identity Validation Request Workflows}
+          \begin{itemize}[leftmargin=2em]
+              \item Supported initiating requests (requester $\rightarrow$ responder).
+              \item Supported querying "Requests I Sent" and "Requests I Received."
+              \item Responders can execute respond/refuse actions;
+              \item Requesters can write final results: Passed/Failed/Error.
+              \item Backend implemented state machine constraints and protection against illegal state transitions.
+          \end{itemize}
+
+    \item \textbf{Implemented Cryptographic Message Signing and Verification (Shared Library + Frontend)}
+          \begin{itemize}[leftmargin=2em]
+              \item Implemented signing, serialization, and verification based on ristretto255 / linkable ring signature (LRS).
+              \item Used PRF for key derivation combined with AES-GCM for encapsulating internal proofs.
+              \item Frontend supports generating Message Packs, verifying signatures, importing/exporting Message Packs, and triggering the verification process.
+          \end{itemize}
+
+    \item \textbf{Implemented a Deployable and Runnable Local Environment}
+          \begin{itemize}[leftmargin=2em]
+              \item Orchestrated PostgreSQL, API, and Nginx using docker-compose.
+              \item Nginx supports HTTP-to-HTTPS redirection and reverse proxying for /api.
+              \item init.sql includes core table structures and indexes for initialization capabilities.
+              \item API integrates Swagger documentation (/docs) and healthz/readyz monitoring endpoints.
+          \end{itemize}
+\end{enumerate}
+
 \subsection{Future Directions}
 
+We would contribute to the project in the future by implementing the following features:
+
+\begin{enumerate}[leftmargin=2em]
+    \item \textbf{UI Enhancements and User Experience Improvements}
+          \begin{itemize}[leftmargin=2em]
+              \item Implement a more intuitive and visually appealing user interface for message composition and verification.
+              \item Add real-time notifications for incoming messages and verification requests.
+              \item Provide better error handling and user feedback during cryptographic operations.
+          \end{itemize}
+
+    \item \textbf{Bug catching and Fixing}
+          \begin{itemize}[leftmargin=2em]
+              \item Conduct thorough testing to identify and fix any bugs or edge cases that may arise during usage.
+              \item Implement additional unit and integration tests to ensure the robustness of the system.
+          \end{itemize}
+
+    \item \textbf{Performance Optimization}
+          \begin{itemize}[leftmargin=2em]
+              \item Optimize cryptographic operations to reduce latency, especially for larger messages or higher volumes of messages.
+              \item Explore caching strategies for frequently used keys or signatures to improve performance.
+          \end{itemize}
+\end{enumerate}
 % ============================================================
 \newpage
 \bibliographystyle{plain}
