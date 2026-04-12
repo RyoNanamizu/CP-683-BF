@@ -44,14 +44,12 @@ Note: Recommend to use Linux to run the source code
 
 ## Startup
 
+Under monorepo folder. Please ensure you already have a vaild testing certs. (see following instructions)
+
 - Command:  
   `docker compose up --build`
-- Test:
-  - Enter the following address in Terminal:
-    - `curl -k https://localhost/api/healthz`
-    - `curl -k https://localhost/api/readyz`
-    - `curl -k https://localhost/api/hello`
-  - Enter http://localhost in browser -> Display the “Call API” button
+- Testing
+  open `https://localhost:3002` to see
 - tips: If build fails with "ERR_PNPM_OUTDATED_LOCKFILE", run `pnpm install` locally to update pnpm-lock.yaml, then rebuild docker.
 
 ## HTTPS Certificates (Ubuntu 22)
@@ -88,6 +86,6 @@ cd certs
 mkcert localhost 127.0.0.1 ::1
 
 (Rename for easier subsequent reference.)
-mv localhost+2.pem dev.crt
+mv localhost+2.pem dev.pem
 mv localhost+2-key.pem dev.key
 ```
