@@ -16,6 +16,7 @@
 \usepackage{tabularx}
 \usepackage{listings}
 \usepackage{setspace}
+\usepackage[toc]{appendix}
 \singlespacing
 
 % Page Setup
@@ -178,7 +179,7 @@ The database is implemented in PostgreSQL and consists of five tables. The serve
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.95\textwidth]{database-schema.png}
+    \includegraphics[width=0.95\textwidth]{database-schema.jpg}
     \caption{Database schema diagram showing the relationships between schemas, Powered by Gemini.}
 \end{figure}
 
@@ -219,20 +220,9 @@ This module implements the core cryptographic operations. The core functions of 
     \item \textbf{\texttt{validatePublicKey}}: Verifies that a specific public key corresponds to a given private key.
 \end{itemize}
 
-\paragraph{Serialization Tools} To facilitate data transmission and storage, the part includes utilities to convert signature objects to and from byte formats.
+\paragraph{Serialization Tools and Utility Functions}
 
-\begin{itemize}
-    \item \textbf{\texttt{LRSToBytes}}: Serializes an \texttt{LRSSignature} object into a \texttt{Uint8Array}.
-    \item \textbf{\texttt{bytesToLRS} / \texttt{bytesToRawLRS}}: Deserializes a byte array back into a structured signature object.
-\end{itemize}
-
-\paragraph{Utility Functions}
-
-\begin{itemize}
-    \item \textbf{Hashing}: Includes \texttt{sha256} for standard data hashing, \texttt{hashToScalar} for curve-specific scalar generation, and \texttt{H\_p} (Hash-to-Curve) for mapping data to a point on the Ristretto255 curve.
-    \item \textbf{Data Conversion}: Exports standard utilities like \texttt{hexToBytes} and \texttt{bytesToHex} for handling hexadecimal strings.
-    \item \textbf{Comparison}: \texttt{uint8ArrayEquals} for comparing two byte arrays for equality.
-\end{itemize}
+To facilitate data transmission and storage, the part includes utilities to convert signature objects to and from byte formats. Including \texttt{LRSToBytes}, \texttt{bytesToLRS}, \texttt{bytesToRawLRS}, textbf{Hashing}, \textbf{Data Conversion} and \textbf{Comparison}.
 
 \paragraph{Conclusion} In conclusion, the cryptography module is designed to be efficient and secure, ensuring that all operations are performed locally on the client side with the assistance of the Yubikey, while the server remains a passive relay that handles only opaque data blobs.
 
@@ -243,19 +233,8 @@ This component handles the interaction with the YubiKey hardware token using the
 \paragraph{WebAuthn and Hardware Key Derivation}
 The system utilizes the \textbf{WebAuthn PRF \\ (Pseudo-Random Function) extension} to securely derive cryptographic keys from the user's hardware authenticator (e.g., TouchID, FaceID, or YubiKey) rather than storing private keys in plain text.
 
-\begin{itemize}
-    \item \textbf{\texttt{getCredential}}: Triggers the \texttt{navigator.credentials.get} API with PRF extensions enabled to fetch hardware-backed credentials.
-    \item \textbf{\texttt{generateKeyWithPRF}}: Uses the derived key from the hardware as a seed to generate deterministic Ristretto255 asymmetric key pairs.
-\end{itemize}
-
 \paragraph{Cryptographic MessagePack Processing}
 This is the core privacy logic that implements Linkable Ring Signatures (LRS) to ensure anonymity and verifiability.
-
-\begin{itemize}
-    \item \textbf{\texttt{getMessagePack}}: Orchestrates the creation of a secure message pack. It combines the payload with a timestamp/nonce, generates an \textit{internal} LRS, encrypts it via AES-GCM, and wraps it in an \textit{external} LRS.
-    \item \textbf{\texttt{ValidateMessagePack}}: Checks metadata versioning and verifies the external ring signature to ensure message integrity.
-    \item \textbf{\texttt{getProofForReceiver}}: Enables the receiver to attempt decryption of the AES-GCM ciphertext using their own derived keys to verify the sender.
-\end{itemize}
 
 \subsection{Backend API}
 The backend API is implemented as a Noje.js RESTful API consisted of 4 services:
@@ -484,8 +463,16 @@ We would contribute to the project in the future by implementing the following f
     \item Bug catching and Fixing
     \item Performance Optimization
 \end{enumerate}
+
+\begin{appendices}
+    \section*{Codes and Testing Environment}
+
+    You can obtain all codes from
+    \\
+    You can view our online system at \texttt{https://cp683.ryonanamizu.com/}. Please noticed that you need to hardware or mobile phone which support FIDO2 to use the system.
+\end{appendices}
+
 % ============================================================
-\newpage
 \bibliographystyle{plain}
 \begin{thebibliography}{9}
 
