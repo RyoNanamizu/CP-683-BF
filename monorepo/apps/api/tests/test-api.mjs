@@ -18,11 +18,11 @@ const testData = {
 };
 
 async function testAPI() {
-  console.log("🧪 Starting API Tests...\n");
+  console.log("Starting API Tests...\n");
 
   try {
     // Test 1: POST /message
-    console.log("📤 Test 1: POST /message");
+    console.log("Test 1: POST /message");
     console.log("Request:", JSON.stringify(testData, null, 2));
 
     const postResponse = await fetch(`${API_BASE_URL}/message`, {
@@ -38,15 +38,15 @@ async function testAPI() {
     console.log("Response:", JSON.stringify(postData, null, 2));
 
     if (!postResponse.ok) {
-      console.log("❌ POST request failed");
+      console.log("POST request failed");
       return;
     }
 
     const messageId = postData.message_id;
-    console.log(`✅ Message created with ID: ${messageId}\n`);
+    console.log(`Message created with ID: ${messageId}\n`);
 
     // Test 2: GET /message/{message_id}
-    console.log("📥 Test 2: GET /message/{message_id}");
+    console.log("Test 2: GET /message/{message_id}");
     console.log(`Fetching message with ID: ${messageId}`);
 
     const getResponse = await fetch(`${API_BASE_URL}/message/${messageId}`);
@@ -56,31 +56,31 @@ async function testAPI() {
     console.log("Response:", JSON.stringify(getMessage, null, 2));
 
     if (!getResponse.ok) {
-      console.log("❌ GET request failed");
+      console.log("GET request failed");
       return;
     }
 
-    console.log("\n✅ GET request successful");
+    console.log("\nGET request successful");
 
     if (isMessageMatch && isSignatureMatch && isKeysMatch && isProofMatch) {
-      console.log("\n✅ All tests passed!");
+      console.log("\nAll tests passed!");
     } else {
-      console.log("\n❌ Some data mismatches detected");
+      console.log("\nSome data mismatches detected");
     }
 
     // Test 3: GET non-existent message
-    console.log("\n📥 Test 3: GET /message/{invalid_id} (should return 404)");
+    console.log("\nTest 3: GET /message/{invalid_id} (should return 404)");
     const invalidResponse = await fetch(
       `${API_BASE_URL}/message/00000000-0000-0000-0000-000000000000`,
     );
     console.log(`Status: ${invalidResponse.status}`);
     if (invalidResponse.status === 404) {
-      console.log("✅ Correctly returned 404 for non-existent message");
+      console.log("Correctly returned 404 for non-existent message");
     } else {
-      console.log("❌ Expected 404 status");
+      console.log("Expected 404 status");
     }
   } catch (error) {
-    console.error("❌ Error during testing:", error);
+    console.error("Error during testing:", error);
   }
 }
 

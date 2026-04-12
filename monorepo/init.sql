@@ -1,5 +1,4 @@
 -- Tables for CP683 database
--- Ensure gen_random_uuid() is available
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- Create credentials table for WebAuthn
@@ -60,7 +59,7 @@ CREATE TABLE
     memo TEXT NOT NULL,
     credential_id TEXT NOT NULL,
     owner VARCHAR(255) NOT NULL, -- username (owner of the bearer asset)
-    timestamp TIMESTAMP NOT NULL DEFAULT now (), -- ISO8601 timestamp
+    timestamp TIMESTAMP NOT NULL DEFAULT now (),
     created_at TIMESTAMP NOT NULL DEFAULT now ()
   );
 

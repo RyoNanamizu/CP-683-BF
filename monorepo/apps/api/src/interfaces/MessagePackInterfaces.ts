@@ -1,6 +1,5 @@
 /**
  * Message Pack Interfaces
- * A Message Pack is a bearer asset combining message, signature, and proof
  */
 
 /**
@@ -12,7 +11,7 @@ export interface MessagePackRecord {
   memo: string;
   credentialId: string;
   owner: string; // username
-  timestamp: string; // ISO8601
+  timestamp: string; // ISO8601 timestamp
 }
 
 /**

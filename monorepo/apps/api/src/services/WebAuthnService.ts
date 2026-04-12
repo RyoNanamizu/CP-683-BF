@@ -16,7 +16,7 @@ export class WebAuthnService {
   private rpId = "aivs";
   private origin = "http://localhost";
 
-  constructor(private pool: Pool) { }
+  constructor(private pool: Pool) {}
 
   /**
    * Start WebAuthn registration - generate challenge
@@ -87,8 +87,6 @@ export class WebAuthnService {
     request: RegisterFinishRequest,
   ): Promise<RegisterFinishResponse> {
     try {
-      // For now, we'll store a placeholder credential
-      // In production, you'd verify the attestationObject and extract the public key
       const credentialId = request.id;
 
       // Store credential (placeholder public key)
@@ -181,9 +179,6 @@ export class WebAuthnService {
    */
   async loginFinish(request: LoginFinishRequest): Promise<LoginFinishResponse> {
     try {
-      // For now, we'll accept any valid request
-      // In production, you'd verify the signature against the stored public key
-
       const credentialId = request.id;
 
       // Find credential

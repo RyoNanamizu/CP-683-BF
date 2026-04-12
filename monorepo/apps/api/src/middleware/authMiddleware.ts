@@ -12,10 +12,7 @@ export interface AuthenticatedRequest extends FastifyRequest {
 }
 
 /**
- * Middleware to verify session token from Authorization header or x-session-token header
- * Expected format:
- * - Authorization: Bearer <sessionToken>
- * - OR x-session-token: <sessionToken>
+ * Middleware to verify session token from Authorization header
  */
 export async function verifySessionToken(
   pool: Pool,
@@ -74,7 +71,6 @@ export async function verifySessionToken(
 
 /**
  * Register auth middleware with the Fastify app
- * Usage: await registerAuthMiddleware(app, pool);
  */
 export async function registerAuthMiddleware(app: any, pool: Pool) {
   // This hook runs before route handlers

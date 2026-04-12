@@ -43,7 +43,6 @@ await app.register(fastifySwagger, {
       description: "API with PostgreSQL backend",
       version: "1.0.0",
     },
-    // don't fix host/schemes; let the UI adapt to the current access entry point.
     // host: "localhost:3000",
     // schemes: ["http"],
     consumes: ["application/json"],
@@ -854,11 +853,17 @@ app.post<{ Body: CreateValidationRequestBody }>(
         },
         400: {
           type: "object",
-          properties: { success: { type: "boolean" }, error: { type: "string" } },
+          properties: {
+            success: { type: "boolean" },
+            error: { type: "string" },
+          },
         },
         401: {
           type: "object",
-          properties: { success: { type: "boolean" }, error: { type: "string" } },
+          properties: {
+            success: { type: "boolean" },
+            error: { type: "string" },
+          },
         },
       },
     },
@@ -876,9 +881,8 @@ app.post<{ Body: CreateValidationRequestBody }>(
       responder: body.responder,
     };
 
-    // if want strict bearer-asset enforcement:
-    // const result = await validationRequestServices.createValidationRequest(svcReq, { enforceOwnership: true });
-    const result = await validationRequestServices.createValidationRequest(svcReq);
+    const result =
+      await validationRequestServices.createValidationRequest(svcReq);
 
     return reply.code(result.success ? 200 : 400).send(result);
   },
@@ -930,11 +934,17 @@ app.get(
         },
         400: {
           type: "object",
-          properties: { success: { type: "boolean" }, error: { type: "string" } },
+          properties: {
+            success: { type: "boolean" },
+            error: { type: "string" },
+          },
         },
         401: {
           type: "object",
-          properties: { success: { type: "boolean" }, error: { type: "string" } },
+          properties: {
+            success: { type: "boolean" },
+            error: { type: "string" },
+          },
         },
       },
     },
@@ -944,7 +954,8 @@ app.get(
     if (verifyResult !== undefined) return verifyResult;
 
     const requester = request.user!.handle;
-    const result = await validationRequestServices.listSentByRequester(requester);
+    const result =
+      await validationRequestServices.listSentByRequester(requester);
 
     if (!result.success) return reply.code(400).send(result);
 
@@ -1002,11 +1013,17 @@ app.get(
         },
         400: {
           type: "object",
-          properties: { success: { type: "boolean" }, error: { type: "string" } },
+          properties: {
+            success: { type: "boolean" },
+            error: { type: "string" },
+          },
         },
         401: {
           type: "object",
-          properties: { success: { type: "boolean" }, error: { type: "string" } },
+          properties: {
+            success: { type: "boolean" },
+            error: { type: "string" },
+          },
         },
       },
     },
@@ -1029,7 +1046,7 @@ app.get(
   },
 );
 
-// PUT /validation-requests/:id/respond - responder responds OR refuses (merged)
+// PUT /validation-requests/:id/respond
 app.put<{ Params: { id: string }; Body: RespondOrRefuseRequest }>(
   "/validation-requests/:id/respond",
   {
@@ -1086,11 +1103,17 @@ app.put<{ Params: { id: string }; Body: RespondOrRefuseRequest }>(
         },
         400: {
           type: "object",
-          properties: { success: { type: "boolean" }, error: { type: "string" } },
+          properties: {
+            success: { type: "boolean" },
+            error: { type: "string" },
+          },
         },
         401: {
           type: "object",
-          properties: { success: { type: "boolean" }, error: { type: "string" } },
+          properties: {
+            success: { type: "boolean" },
+            error: { type: "string" },
+          },
         },
       },
     },
@@ -1112,7 +1135,7 @@ app.put<{ Params: { id: string }; Body: RespondOrRefuseRequest }>(
   },
 );
 
-// PUT /validation-requests/:id/result - requester sets final verification result
+// PUT /validation-requests/:id/result
 app.put<{ Params: { id: string }; Body: UpdateValidationResultRequest }>(
   "/validation-requests/:id/result",
   {
@@ -1158,11 +1181,17 @@ app.put<{ Params: { id: string }; Body: UpdateValidationResultRequest }>(
         },
         400: {
           type: "object",
-          properties: { success: { type: "boolean" }, error: { type: "string" } },
+          properties: {
+            success: { type: "boolean" },
+            error: { type: "string" },
+          },
         },
         401: {
           type: "object",
-          properties: { success: { type: "boolean" }, error: { type: "string" } },
+          properties: {
+            success: { type: "boolean" },
+            error: { type: "string" },
+          },
         },
       },
     },
@@ -1183,6 +1212,5 @@ app.put<{ Params: { id: string }; Body: UpdateValidationResultRequest }>(
     return reply.code(result.success ? 200 : 400).send(result);
   },
 );
-
 
 await app.listen({ host: "0.0.0.0", port: 3000 });

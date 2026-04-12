@@ -1,12 +1,6 @@
 /**
  * Validation Request Interfaces
- *
- * These interfaces define the request/response structures used by:
- * - ValidationRequestServices
- * - Fastify route handlers
- *
- * The validation request state machine:
- *
+ * State  process flow:
  * Pending  -> Replied -> Passed / Failed / Error
  *         -> Refused
  */
@@ -19,7 +13,7 @@ export type ValidationStatus =
   | "Refused"
   | "Error";
 
-// validation request database record
+// Validation request database record
 export interface ValidationRequestRecord {
   id: string;
 
@@ -38,7 +32,7 @@ export interface ValidationRequestRecord {
   updated_at: string;
 }
 
-// create validation request
+// Create validation request
 export interface CreateValidationRequestRequest {
   messagePackId: string;
 
@@ -57,8 +51,7 @@ export interface CreateValidationRequestResponse {
   error?: string;
 }
 
-// list validation requests
-// wsed for: Sent requests (requester = current user) and received requests (responder = current user)
+// List validation requests
 export interface ListValidationRequestsResponse {
   success: boolean;
 
@@ -69,7 +62,7 @@ export interface ListValidationRequestsResponse {
   error?: string;
 }
 
-// responder action: Respond or Refuse
+// Responder action: Respond or Refuse
 export interface RespondOrRefuseRequest {
   action: "respond" | "refuse";
 

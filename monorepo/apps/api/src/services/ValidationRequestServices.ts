@@ -1,15 +1,5 @@
 /**
  * Validation Request Services
- *
- * This service supports:
- * - Create a validation request (requester -> responder) for a given message_pack_id
- * - List "sent" requests (requester = current user)
- * - List "received" requests (responder = current user)
- * - Responder responds or refuses (merged action)
- * - Requester updates final result (Passed/Failed/Error)
- *
- * Tips:
- * - Identification is based on the session, not request body, to prevent spoofing.
  */
 
 import { Pool } from "pg";
@@ -35,9 +25,6 @@ export class ValidationRequestServices {
     return handle.trim();
   }
 
-  /**
-   * Optional: enforce "bearer asset" property.
-   */
   private async ensureRequesterOwnsMessagePack(
     messagePackId: string,
     requester: string,
@@ -72,7 +59,7 @@ export class ValidationRequestServices {
     };
   }
 
-  // Create a new validation request. (requester should come from session)
+  // Create a new validation request.
   async createValidationRequest(
     request: CreateValidationRequestRequest,
     opts?: { enforceOwnership?: boolean },
@@ -108,7 +95,6 @@ export class ValidationRequestServices {
       }
 
       // Avoid duplicate pending requests for the same (messagePackId, requester, responder)
-      // This prevents spamming and keeps UI clean.
       const dup = await this.pool.query(
         `SELECT id, status FROM validation_requests
          WHERE message_pack_id = $1 AND requester = $2 AND responder = $3
@@ -120,7 +106,7 @@ export class ValidationRequestServices {
       if (dup.rows.length > 0) {
         const latest = dup.rows[0];
         const status = String(latest.status);
-        // If there's already a pending/replied request, return it instead of creating a new one.
+
         if (status === "Pending" || status === "Replied") {
           return {
             success: true,
@@ -154,7 +140,7 @@ export class ValidationRequestServices {
     }
   }
 
-  // List validation requests sent by a user (requester is current user).
+  // List validation requests sent by a user.
   async listSentByRequester(
     requester: string,
   ): Promise<ListValidationRequestsResponse> {
@@ -189,7 +175,7 @@ export class ValidationRequestServices {
     }
   }
 
-  // List validation requests received by a user (responder is current user).
+  // List validation requests received by a user.
   async listReceivedByResponder(
     responder: string,
   ): Promise<ListValidationRequestsResponse> {
@@ -225,13 +211,7 @@ export class ValidationRequestServices {
   }
 
   /**
-   * Responder action: respond OR refuse (merged endpoint friendly).
-   *
-   * Rules:
-   * - Only responder can call (route layer should pass current user as actingUser)
-   * - If action=respond: responsePayload required, status becomes 'Replied'
-   * - If action=refuse: status becomes 'Refused'
-   * - Only allowed when current status is 'Pending' (prevents double write)
+   * Responder action: respond OR refuse.
    */
   async respondOrRefuse(
     id: string,
@@ -252,7 +232,7 @@ export class ValidationRequestServices {
         return { success: false, error: "action is required" };
       }
 
-      // Load request and verify ownership (responder)
+      // Load request and verify ownership
       const current = await this.pool.query(
         `SELECT id, responder, status
          FROM validation_requests
@@ -338,11 +318,6 @@ export class ValidationRequestServices {
 
   /**
    * Requester updates final verification result.
-   *
-   * Rules:
-   * - Only requester can call
-   * - Allowed only after 'Replied' (may adjust based on frountends needs)
-   * - Sets status to 'Passed' | 'Failed' | 'Error'
    */
   async updateValidationResult(
     id: string,

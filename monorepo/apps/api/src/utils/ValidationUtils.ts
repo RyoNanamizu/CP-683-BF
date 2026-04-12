@@ -6,8 +6,6 @@ import { isValidBase64 } from "./Base64Utils";
 
 /**
  * Validate the message request structure
- * @param request - The request to validate
- * @throws Error if validation fails
  */
 export function validateMessageRequest(request: MessageRequest): void {
   if (!request.message || typeof request.message !== "string") {

@@ -15,9 +15,6 @@ export class KeyServices {
 
   /**
    * Process incoming message with ring signature and optional encrypted proof
-   * and store it in the database
-   * @param request - The message request containing signature and encrypted data
-   * @returns Processed message response
    */
   async processMessage(request: MessageRequest): Promise<MessageResponse> {
     try {
