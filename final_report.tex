@@ -455,9 +455,9 @@ If identity verification is later requested, the Recipient sends the original me
 \section{Evaluation}
 
 \subsection{Functional Testing}
-Functional testing was conducted to evaluate whether the prototype correctly supports the intended end-to-end workflow, including authentication, anonymous message creation, message-pack management, and authorship confirmation. The purpose of this evaluation was not to assess user interface quality in isolation, but to verify that the frontend, backend, and client-side cryptographic components operate consistently as an integrated system.
+Functional testing was conducted to verify that the prototype supports the intended end-to-end workflow, including authentication, anonymous message creation, message-pack management, and authorship confirmation. Rather than assessing user interface quality in isolation, this evaluation focused on whether the frontend, backend, and client-side cryptographic components operated consistently as an integrated system.
 
-The first group of tests focused on the WebAuthn-based login flow. A user was able to initiate registration or authentication challenges from the browser, complete credential operations with the hardware token, and obtain a valid session for subsequent requests. After successful login, the client correctly restored the authenticated state and exposed the corresponding user functions, indicating that challenge handling, session issuance, and session recovery were functioning as expected.
+The first group of tests focused on the WebAuthn-based login flow. A user was able to initiate registration or authentication challenges from the browser, complete credential operations with the hardware token, and obtain a valid session for subsequent requests. After successful login, the client correctly restored the authenticated state and exposed the corresponding user functions, indicating that challenge handling, session issuance, and session recovery were workflow-level functional successes.
 
 \begin{figure}[H]
     \centering
@@ -469,7 +469,7 @@ The second group of tests examined anonymous message-pack generation and storage
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.70\textwidth]{functional-message-pack.png}
+    \includegraphics[width=0.65\textwidth]{functional-message-pack.png}
     \caption{Stored message pack displayed in the list with management actions.}
 \end{figure}
 
@@ -477,30 +477,29 @@ Additional tests covered message-pack management and the authorship confirmation
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.70\textwidth]{functional-validation-received.png}
+    \includegraphics[width=0.65\textwidth]{functional-validation-received.png}
     \caption{Received validation request shown in the pending state before proof handling.}
 \end{figure}
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.70\textwidth]{functional-validation-replied.png}
+    \includegraphics[width=0.65\textwidth]{functional-validation-replied.png}
     \caption{Sent validation request shown after the responder has returned a proof.}
 \end{figure}
 
 \subsection{Security Analysis}
-The security properties of the system are primarily derived from the combination of client-side cryptographic execution, hardware-assisted key derivation, and the two-layer ring-signature construction. Instead of directly signing messages with a long-term identity key, the prototype derives a one-time key with the participation of the YubiKey through the WebAuthn PRF extension. As a result, message authenticity can be established without creating a direct and persistent link between signed content and the user's long-term identity.
+The security properties of the prototype are primarily derived from the combination of client-side cryptographic execution, hardware-assisted key derivation, and the two-layer ring-signature construction. Instead of directly signing messages with a long-term identity key, the system derives a one-time key with the participation of the YubiKey through the WebAuthn PRF extension. As a result, message authenticity can be established without introducing a direct and persistent link between signed content and the user's long-term identity. 
 
-With respect to anonymity, the outer ring signature allows a verifier to confirm that a valid member of the ring signed the message, while preventing direct identification of the actual sender. Because each message uses a freshly derived one-time key together with a set of decoy public keys, signatures are not naturally tied to a stable signing identity across messages. This design reduces the risk of straightforward cross-message linkage and supports the system's goal of anonymous transmission by default.
+First, the system supports anonymous authenticity. The outer ring signature allows a recipient to verify that a message was produced by a valid member of the ring without revealing which member actually signed it. Because each message is associated with a freshly derived one-time key and a set of decoy public keys, signatures are not directly tied to a stable long-term identity.
 
-The system also provides controlled identity revelation through the encrypted proof mechanism. In addition to the outer signature, the sender generates an inner ring signature and encrypts it with a symmetric key derived from a YubiKey-bound PRF output. Only a party with access to the original hardware credential can derive the correct decryption key and recover the proof. This enables the claimed sender to later demonstrate authorship without requiring the server or any third party to act as an identity escrow authority.
+Second, the prototype supports controlled authorship revelation. In addition to the outer signature, the sender generates an inner ring signature and protects it as an encrypted proof derived from the same hardware-backed credential. This allows the sender to later provide additional cryptographic evidence and confirm authorship when needed.
 
-From a key-management perspective, the backend does not store private signing material and does not perform the cryptographic operations required to generate or reveal proofs. Its role is limited to challenge management, session handling, message-pack storage, and request coordination. This design reduces the server's position in the trusted computing base and avoids concentrating sensitive signing material in a single backend component.
+Third, the backend does not store private signing material and does not perform the cryptographic operations required to generate or reveal proofs. Its role is limited to challenge management, session handling, message-pack storage, and validation-request coordination. As a result, the server is not required to act as a trusted identity escrow for the messaging workflow.
 
-Overall, the prototype demonstrates a credible balance between anonymity and revealability: recipients can verify message validity without immediately learning the sender's identity, while the legitimate sender retains the exclusive ability to prove authorship later through the original hardware credential. At the same time, the present version should be understood as a research prototype, where the main security contribution lies in validating the feasibility of the mechanism rather than delivering a production-ready assurance level.
+Overall, the prototype demonstrates that anonymous transmission, integrity verification, and later authorship confirmation can coexist within one browser-based workflow.
 
 \subsection{Performance Analysis}
-Functional testing and backend API timing observations were conducted through the online test environment at \texttt{https://cp683.ryonanamizu.com/}. The system was accessed through a web browser, and browser developer tools were used to inspect request timing for representative backend endpoints.
-Cryptographic performance measurements, by contrast, were collected through a separate local benchmark that focused on client-side ring-signature generation, verification, message-pack construction, and proof revelation.
+Functional testing and backend API timing observations were conducted through the online test environment at \texttt{https://cp683.ryonanamizu.com/}. The system was accessed through a web browser, and browser developer tools were used to inspect request timing for representative backend endpoints. Cryptographic performance measurements, by contrast, were collected through a separate local benchmark that focused on client-side ring-signature generation, verification, message-pack construction, and proof revelation.
 
 \begin{table}[H]
     \centering
@@ -517,30 +516,24 @@ Cryptographic performance measurements, by contrast, were collected through a se
     \caption{Local benchmark results for the default configuration with ring size 8.}
 \end{table}
 
-To evaluate the prototype under its default anonymity-set size, a local benchmark was conducted with \texttt{ring size = 8}. The benchmark focused on client-side cryptographic operations, and each metric was measured over 20 runs with mean, minimum, and maximum values recorded.
+Under the default configuration with \texttt{ring size = 8}, each metric was measured over 20 runs in the local benchmark. The results show that LRS generation and verification required 39.34 ms and 38.81 ms on average, respectively. Approximate message-pack generation was the most expensive measured client-side step at 77.71 ms, while approximate proof revelation was the lowest-cost step at 0.96 ms.
 
-The results show that LRS generation required an average of 39.34 ms, while LRS verification required an average of 38.81 ms. The two operations therefore have comparable costs and both remain within a few tens of milliseconds.
+As a supplementary observation, several backend API latencies were also inspected through browser developer tools. Under the local deployment setup, \texttt{POST} \path{/message}, \texttt{GET} \path{/message/list/by\_username/:username}, and \texttt{POST} \path{/validation-requests} required approximately 66.57 ms, 53.44 ms, and 47.61 ms, respectively.
 
-The approximate message-pack generation process required an average of 77.71 ms, with observed values ranging from 75.15 ms to 85.28 ms. As expected, this stage is more expensive than a single signature operation because it combines multiple cryptographic steps, but it still remained below 100 ms in the local setup.
-
-By contrast, approximate proof revelation required only 0.96 ms on average. In this simplified benchmark setting, proof decryption itself was therefore not the dominant cost. These measurements, however, do not include real browser-based WebAuthn or YubiKey PRF interaction.
-
-Overall, the results for \texttt{ring size = 8} indicate that the main performance cost lies in local ring-signature computation and full message-pack construction rather than in proof revelation. For the current prototype, the default 1-of-8 configuration provides a reasonable balance between privacy and usability.
-
-As a supplementary observation, several backend API latencies were also inspected through the browser developer tools. Under the local deployment setup, \texttt{POST} \path{/message}, \texttt{GET} \path{/message/list/by\_username/:username}, and \texttt{POST} \path{/validation-requests} required approximately 66.57 ms, 53.44 ms, and 47.61 ms, respectively. These values remained within the same general range as, or below, the local message-pack generation cost, which further suggests that the current prototype is more constrained by client-side cryptographic processing than by server-side storage or routing.
+Overall, the measurements indicate that the main runtime cost of the prototype lies in local cryptographic processing, especially full message-pack construction.
 
 \subsection{Limitations and Edge Cases}
 Although the prototype demonstrates the engineering feasibility of anonymous messaging, public verification, and later authorship revelation, several limitations and edge cases remain and should be considered when interpreting the evaluation results.
 
-First, the current system is still a research prototype, and its server-side WebAuthn logic has not yet reached production-level completeness. The frontend supports browser-based registration and authentication flows, and the backend manages challenges, sessions, and credentials, but attestation verification during registration and assertion verification during login are not yet fully implemented. The evaluation therefore demonstrates workflow feasibility rather than deployment-ready authentication assurance.
+First, the current system is still a research prototype. Although the frontend supports browser-based registration and authentication flows, server-side attestation verification during registration and assertion verification during login are not yet fully implemented.
 
-Second, the system depends strongly on hardware support. The current design assumes a YubiKey, or another authenticator, that supports the WebAuthn PRF extension. If the browser, operating system, or hardware token does not provide this capability, one-time key derivation and proof decryption cannot proceed as intended.
+Second, the design depends on hardware and platform support for the WebAuthn PRF extension. If the authenticator or browser does not support this capability, one-time key derivation and proof decryption cannot proceed as intended.
 
-Third, the anonymity-set size is fixed in the current implementation. The default configuration uses a 1-of-8 ring, consisting of one real public key and seven decoy keys. This is sufficient for prototype validation, but both anonymity strength and computational cost are directly influenced by the ring size.
+Third, the anonymity-set size is fixed in the current implementation. The default configuration uses a 1-of-8 ring, which is sufficient for prototype validation but does not represent a flexible or production-oriented anonymity setting.
 
-Finally, the core cryptographic workflow is executed in the browser, so correctness and security still depend in part on the integrity of the client environment. Loss of the original hardware token also removes the ability to reveal authorship later, interrupted validation requests are handled mainly through application-level status updates, and metadata such as timestamps, request relationships, and ownership transfers may still introduce correlation risks.
+Lastly, the core cryptographic workflow is executed in the browser, so security still depends in part on the integrity of the client environment. In addition, loss of the original hardware token prevents later authorship revelation, and application metadata may still introduce correlation risks.
 
-Taken together, these limitations clarify the present scope of the project. The main contribution of the current prototype is to validate the feasibility of the mechanism itself. Future work may extend this foundation with production-grade WebAuthn verification, more flexible ring-size selection, stronger recovery handling, and improved metadata protection.
+In conclusion, these limitations show that the current contribution of the project is to validate mechanism feasibility rather than to provide a production-ready deployment.
 
 \section{Conclusion and Future Work}
 
