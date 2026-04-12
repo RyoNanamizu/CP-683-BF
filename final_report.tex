@@ -16,6 +16,7 @@
 \usepackage{tabularx}
 \usepackage{listings}
 \usepackage{setspace}
+\usepackage[toc]{appendix}
 \singlespacing
 
 % Page Setup
@@ -99,8 +100,8 @@ AIVS is a research prototype that is used to demonstrate the combination of cryp
 As a prototype, there are several limitations in the current implementation:
 \begin{itemize}
     \item \textbf{Anonymity Set Size:} The ring of public keys is fixed at 1-of-8 (one real public key and seven generated decoy ones). This is sufficient for a prototype, but is not suitable for larger schemes, which provide stronger anonymity guaranties and are more appropriate for production systems.
-    \item \textbf{Hardware Dependency:} The system specifically requires a physical hardware device named Yubikey with PRF extension support. Environments with different hardware cannot participate in the process. 
-    \item \textbf{Prototype Scope:} The implementation is not designed for production use. Such factors as: Scalability, multi-device support and account recovery are not in scope. 
+    \item \textbf{Hardware Dependency:} The system specifically requires a physical hardware device named Yubikey with PRF extension support. Environments with different hardware cannot participate in the process.
+    \item \textbf{Prototype Scope:} The implementation is not designed for production use. Such factors as: Scalability, multi-device support and account recovery are not in scope.
 \end{itemize}
 
 % ============================================================
@@ -118,13 +119,6 @@ Secret keys management is also an important aspect in the context of security of
 The FIDO2/WebAuthn standard introduces a model to allow cryptographic operations to be performed by external authenticators, such as hardware security tokens. In this model, the host application cannot directly access the private keys which are generated and stored within the authenticator.
 A recent extension to WebAuthn is the PRF (Pseudo-Random Function) extension. In this extension, by giving an input, an output would be generated based on a credential-bound secret and it is accessible to the application. The authenticator can return the PRF output while keeping the underlying secret. As a result, applications can derive high-entropy values tied to the authenticator.
 In this project, PRF outputs are used as part of the key derivation process for one-time signing keys. And they also are used for deriving symmetric keys used in proof encryption. This design creates a connection between critical cryptographic operations and the possession of a hardware authenticator, so that the reliance on software-managed long-term secrets in the browser environment can be significantly reduced.
-
-\subsection{Gap Analysis}
-There are several limitations which cannot be simultaneously addressed in current solutions according to existing systems and research approaches.
-First, a trade-off between identity and privacy. Traditional PKI-based systems like PGP or S/MIME provide strong authenticity and non-repudiation, however, a connection of signatures and long-term identities is created. Conversely, anonymous communication systems provide strong privacy but sacrifice verifiable authorship.
-Second, the integration ring signatures and linkable ring signatures with browser-based security mechanisms. Their strong anonymity properties make them widely used in specialized environments such as cryptocurrency systems or native applications, but it is difficult to integrate them into standardized browser-based security mechanisms, such as WebAuthn.
-Third, the limitation of standard ring signature constructions. Although standard ring signature constructions can ensure signer anonymity, they do not inherently support identity disclosure, as  they do not provide a built-in approach for a signer to later prove authorship.
-To address these gaps, the AIVS system combines hardware-assisted key derivation with a two-layer ring signature construction. The goal is to enable anonymous message authentication in a browser environment, while supporting a controlled and verifiable authorship disclosure process when required.
 
 % ============================================================
 \section{System Design}
@@ -182,67 +176,12 @@ The system follows a \textbf{Thick Client, Thin Server} architecture. The server
 
 \subsection{Database Schema}
 The database is implemented in PostgreSQL and consists of five tables. The server stores only public key in binary data type and metadata for message routing and username verification.
-\subsubsection*{Credentials}
-Stores WebAuthn registration data for each user handle.
 
-\begin{itemize}
-    \item \texttt{id} --- UUID, primary key.
-    \item \texttt{handle} --- VARCHAR(255), username.
-    \item \texttt{credential\_id} --- TEXT, unique WebAuthn credential identifier.
-    \item \texttt{public\_key} --- BYTEA, public key.
-    \item \texttt{sign\_count} --- INTEGER, count login time used with the hardware, default 0.
-    \item \texttt{transports} --- TEXT, nullable.
-    \item \texttt{created\_at} / \texttt{updated\_at} --- TIMESTAMP.
-\end{itemize}
-
-\subsubsection*{Challenges}
-Stores timeout WebAuthn challenges issued during registration and authentication process. Each challenge is used and deleted after verification.
-
-\begin{itemize}
-    \item \texttt{id} --- UUID, primary key.
-    \item \texttt{handle} --- VARCHAR(255), username.
-    \item \texttt{challenge} --- TEXT, base64url-encoded.
-    \item \texttt{challenge\_type} --- VARCHAR(50), either \texttt{registration} or \texttt{login}.
-    \item \texttt{expires\_at} --- TIMESTAMP, 10 minutes for registration, 5 minutes for login.
-    \item \texttt{created\_at} --- TIMESTAMP.
-\end{itemize}
-
-\subsubsection*{Sessions}
-Manages session tokens created after a successful WebAuthn login and its time-alive is 24 hours.
-
-\begin{itemize}
-    \item \texttt{id} --- UUID, primary key.
-    \item \texttt{handle} --- VARCHAR(255).
-    \item \texttt{session\_token} --- TEXT.
-    \item \texttt{expires\_at} --- TIMESTAMP, 24-hour TTL.
-    \item \texttt{created\_at} / \texttt{updated\_at} --- TIMESTAMP.
-\end{itemize}
-
-\subsubsection*{Message\_packs}
-Stores the JSON-serialized message payload. Ownership can be transferred between handles, with the timestamp updated on each transfer.
-
-\begin{itemize}
-    \item \texttt{id} --- UUID, primary key.
-    \item \texttt{content} --- TEXT, JSON-serialized payload.
-    \item \texttt{memo} --- TEXT, description.
-    \item \texttt{credential\_id} --- TEXT.
-    \item \texttt{owner} --- VARCHAR(255), current owner handle.
-    \item \texttt{created\_at} --- TIMESTAMP, updated on transfer.
-\end{itemize}
-
-\subsubsection*{Validation\_requests}
-Implements an identity confirmation workflow between 2 users around a message pack
-
-\begin{itemize}
-    \item \texttt{id} --- UUID, primary key.
-    \item \texttt{message\_pack\_id} --- UUID, foreign key referencing
-    \texttt{message\_packs(id)} ON DELETE CASCADE.
-    \item \texttt{requester} --- VARCHAR(255).
-    \item \texttt{responder} --- VARCHAR(255).
-    \item \texttt{status} --- VARCHAR(20), CHECK constraint enforced.
-    \item \texttt{response\_payload} --- TEXT, nullable, responder evidence.
-    \item \texttt{created\_at} / \texttt{updated\_at} --- TIMESTAMP.
-\end{itemize}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\textwidth]{database-schema.jpg}
+    \caption{Database schema diagram showing the relationships between schemas, Powered by Gemini.}
+\end{figure}
 
 % ============================================================
 \section{Implementation}
@@ -281,20 +220,9 @@ This module implements the core cryptographic operations. The core functions of 
     \item \textbf{\texttt{validatePublicKey}}: Verifies that a specific public key corresponds to a given private key.
 \end{itemize}
 
-\paragraph{Serialization Tools} To facilitate data transmission and storage, the part includes utilities to convert signature objects to and from byte formats.
+\paragraph{Serialization Tools and Utility Functions}
 
-\begin{itemize}
-    \item \textbf{\texttt{LRSToBytes}}: Serializes an \texttt{LRSSignature} object into a \texttt{Uint8Array}.
-    \item \textbf{\texttt{bytesToLRS} / \texttt{bytesToRawLRS}}: Deserializes a byte array back into a structured signature object.
-\end{itemize}
-
-\paragraph{Utility Functions}
-
-\begin{itemize}
-    \item \textbf{Hashing}: Includes \texttt{sha256} for standard data hashing, \texttt{hashToScalar} for curve-specific scalar generation, and \texttt{H\_p} (Hash-to-Curve) for mapping data to a point on the Ristretto255 curve.
-    \item \textbf{Data Conversion}: Exports standard utilities like \texttt{hexToBytes} and \texttt{bytesToHex} for handling hexadecimal strings.
-    \item \textbf{Comparison}: \texttt{uint8ArrayEquals} for comparing two byte arrays for equality.
-\end{itemize}
+To facilitate data transmission and storage, the part includes utilities to convert signature objects to and from byte formats. Including \texttt{LRSToBytes}, \texttt{bytesToLRS}, \texttt{bytesToRawLRS}, textbf{Hashing}, \textbf{Data Conversion} and \textbf{Comparison}.
 
 \paragraph{Conclusion} In conclusion, the cryptography module is designed to be efficient and secure, ensuring that all operations are performed locally on the client side with the assistance of the Yubikey, while the server remains a passive relay that handles only opaque data blobs.
 
@@ -305,19 +233,8 @@ This component handles the interaction with the YubiKey hardware token using the
 \paragraph{WebAuthn and Hardware Key Derivation}
 The system utilizes the \textbf{WebAuthn PRF \\ (Pseudo-Random Function) extension} to securely derive cryptographic keys from the user's hardware authenticator (e.g., TouchID, FaceID, or YubiKey) rather than storing private keys in plain text.
 
-\begin{itemize}
-    \item \textbf{\texttt{getCredential}}: Triggers the \texttt{navigator.credentials.get} API with PRF extensions enabled to fetch hardware-backed credentials.
-    \item \textbf{\texttt{generateKeyWithPRF}}: Uses the derived key from the hardware as a seed to generate deterministic Ristretto255 asymmetric key pairs.
-\end{itemize}
-
 \paragraph{Cryptographic MessagePack Processing}
 This is the core privacy logic that implements Linkable Ring Signatures (LRS) to ensure anonymity and verifiability.
-
-\begin{itemize}
-    \item \textbf{\texttt{getMessagePack}}: Orchestrates the creation of a secure message pack. It combines the payload with a timestamp/nonce, generates an \textit{internal} LRS, encrypts it via AES-GCM, and wraps it in an \textit{external} LRS.
-    \item \textbf{\texttt{ValidateMessagePack}}: Checks metadata versioning and verifies the external ring signature to ensure message integrity.
-    \item \textbf{\texttt{getProofForReceiver}}: Enables the receiver to attempt decryption of the AES-GCM ciphertext using their own derived keys to verify the sender.
-\end{itemize}
 
 \subsection{Backend API}
 The backend API is implemented as a Noje.js RESTful API consisted of 4 services:
@@ -455,12 +372,72 @@ If identity verification is later requested, the Recipient sends the original me
 \section{Evaluation}
 
 \subsection{Functional Testing}
+Functional testing was conducted to verify that the prototype supports the intended end-to-end workflow, including authentication, anonymous message creation, message-pack management, and authorship confirmation. Rather than assessing user interface quality in isolation, this evaluation focused on whether the frontend, backend, and client-side cryptographic components operated consistently as an integrated system.
+
+The first group of tests focused on the WebAuthn-based login flow. A user was able to initiate registration or authentication challenges from the browser, complete credential operations with the hardware token, and obtain a valid session for subsequent requests. After successful login, the client correctly restored the authenticated state and exposed the corresponding user functions, indicating that challenge handling, session issuance, and session recovery were workflow-level functional successes.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.70\textwidth]{functional-login-success.png}
+    \caption{Authenticated user interface after successful login and session establishment.}
+\end{figure}
+
+The second group of tests examined anonymous message-pack generation and storage. After authentication, the client successfully derived a one-time key with the participation of the YubiKey PRF, generated the corresponding ring-signature-based message pack locally, and submitted the serialized result to the backend. The stored message pack could then be retrieved and displayed in the message list, confirming that local cryptographic generation, backend persistence, and frontend rendering were correctly connected.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.65\textwidth]{functional-message-pack.png}
+    \caption{Stored message pack displayed in the list with management actions.}
+\end{figure}
+
+Additional tests covered message-pack management and the authorship confirmation workflow. A user could export a stored message pack, transfer its ownership to another user, and observe the updated ownership state after refreshing the list. Furthermore, a recipient could initiate a validation request, the claimed sender could respond with a proof derived from the original credential, and the requester could obtain a final validation status. These results indicate that the prototype already supports the complete functional loop from anonymous message creation to later identity revelation.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.65\textwidth]{functional-validation-received.png}
+    \caption{Received validation request shown in the pending state before proof handling.}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.65\textwidth]{functional-validation-replied.png}
+    \caption{Sent validation request shown after the responder has returned a proof.}
+\end{figure}
 
 \subsection{Security Analysis}
+The security properties of the prototype are primarily derived from the combination of client-side cryptographic execution, hardware-assisted key derivation, and the two-layer ring-signature construction. Instead of directly signing messages with a long-term identity key, the system derives a one-time key with the participation of the YubiKey through the WebAuthn PRF extension. As a result, message authenticity can be established without introducing a direct and persistent link between signed content and the user's long-term identity.
+
+First, the system supports anonymous authenticity. The outer ring signature allows a recipient to verify that a message was produced by a valid member of the ring without revealing which member actually signed it. Because each message is associated with a freshly derived one-time key and a set of decoy public keys, signatures are not directly tied to a stable long-term identity.
+
+Second, the prototype supports controlled authorship revelation. In addition to the outer signature, the sender generates an inner ring signature and protects it as an encrypted proof derived from the same hardware-backed credential. This allows the sender to later provide additional cryptographic evidence and confirm authorship when needed.
+
+Third, the backend does not store private signing material and does not perform the cryptographic operations required to generate or reveal proofs. Its role is limited to challenge management, session handling, message-pack storage, and validation-request coordination. As a result, the server is not required to act as a trusted identity escrow for the messaging workflow.
+
+Overall, the prototype demonstrates that anonymous transmission, integrity verification, and later authorship confirmation can coexist within one browser-based workflow.
 
 \subsection{Performance Analysis}
+Functional testing and backend API timing observations were conducted through the online test environment at \texttt{https://cp683.ryonanamizu.com/}. The system was accessed through a web browser, and browser developer tools were used to inspect request timing for representative backend endpoints. Cryptographic performance measurements, by contrast, were collected through a separate local benchmark that focused on client-side ring-signature generation, verification, message-pack construction, and proof revelation.
 
-\subsection{Limitations and Edge Cases}
+\begin{table}[H]
+    \centering
+    \begin{tabular}{lccc}
+        \toprule
+        Metric                          & Mean (ms) & Min (ms) & Max (ms) \\
+        \midrule
+        LRS generation                  & 39.34     & 37.19    & 45.96    \\
+        LRS verification                & 38.81     & 37.12    & 44.11    \\
+        Approx. message pack generation & 77.71     & 75.15    & 85.28    \\
+        Approx. proof revelation        & 0.96      & 0.39     & 2.68     \\
+        \bottomrule
+    \end{tabular}
+    \caption{Local benchmark results for the default configuration with ring size 8.}
+\end{table}
+
+Under the default configuration with \texttt{ring size = 8}, each metric was measured over 20 runs in the local benchmark. The results show that LRS generation and verification required 39.34 ms and 38.81 ms on average, respectively. Approximate message-pack generation was the most expensive measured client-side step at 77.71 ms, while approximate proof revelation was the lowest-cost step at 0.96 ms.
+
+As a supplementary observation, several backend API latencies were also inspected through browser developer tools. Under the local deployment setup, \texttt{POST} \path{/message}, \texttt{GET} \path{/message/list/by\_username/:username}, and \texttt{POST} \path{/validation-requests} required approximately 66.57 ms, 53.44 ms, and 47.61 ms, respectively.
+
+Overall, the measurements indicate that the main runtime cost of the prototype lies in local cryptographic processing, especially full message-pack construction.
 
 \section{Conclusion and Future Work}
 
@@ -469,51 +446,12 @@ If identity verification is later requested, the Recipient sends the original me
 The objectives achieved by the project so far can be summarized into the following six levels:
 
 \begin{enumerate}[leftmargin=2em]
-    \item \textbf{Established a Comprehensive Full-stack Monorepo Architecture}
-          \begin{itemize}[leftmargin=2em]
-              \item Organized a three-tier structure (frontend, backend, and shared libraries) using pnpm workspaces.
-              \item Unified use of TypeScript across both frontend and backend, with reusable shared types and utility functions.
-              \item Supported parallel development and unified builds (root directory scripts have been configured).
-          \end{itemize}
-    \item \textbf{Implemented the Main WebAuthn-based Authentication Workflow}
-          \begin{itemize}[leftmargin=2em]
-              \item Backend provides endpoints for registration challenges, registration completion, login challenges, login completion, and session queries.
-              \item Frontend completed the implementation of registration and login flows using the browser's WebAuthn API.
-              \item Implemented subsequent interface authentication via session tokens (Header or Bearer).
-              \item Supported session persistence and recovery (session can be retrieved after page refresh).
-          \end{itemize}
-
-    \item \textbf{Implemented the Business Closed-loop for Message Packs as Transferable Assets}
-          \begin{itemize}[leftmargin=2em]
-              \item Supported the creation of Message Packs (Content + Memo + CredentialId).
-              \item Supported querying by ID and by username lists.
-              \item Supported ownership transfer (change of owner).
-              \item Data models and indexes are persisted in the database, providing basic retrieval performance.
-          \end{itemize}
-
-    \item \textbf{Implemented Identity Validation Request Workflows}
-          \begin{itemize}[leftmargin=2em]
-              \item Supported initiating requests (requester $\rightarrow$ responder).
-              \item Supported querying "Requests I Sent" and "Requests I Received."
-              \item Responders can execute respond/refuse actions;
-              \item Requesters can write final results: Passed/Failed/Error.
-              \item Backend implemented state machine constraints and protection against illegal state transitions.
-          \end{itemize}
-
-    \item \textbf{Implemented Cryptographic Message Signing and Verification (Shared Library + Frontend)}
-          \begin{itemize}[leftmargin=2em]
-              \item Implemented signing, serialization, and verification based on ristretto255 / linkable ring signature (LRS).
-              \item Used PRF for key derivation combined with AES-GCM for encapsulating internal proofs.
-              \item Frontend supports generating Message Packs, verifying signatures, importing/exporting Message Packs, and triggering the verification process.
-          \end{itemize}
-
-    \item \textbf{Implemented a Deployable and Runnable Local Environment}
-          \begin{itemize}[leftmargin=2em]
-              \item Orchestrated PostgreSQL, API, and Nginx using docker-compose.
-              \item Nginx supports HTTP-to-HTTPS redirection and reverse proxying for /api.
-              \item init.sql includes core table structures and indexes for initialization capabilities.
-              \item API integrates Swagger documentation (/docs) and healthz/readyz monitoring endpoints.
-          \end{itemize}
+    \item Established a Comprehensive Full-stack Monorepo Architecture
+    \item Implemented the Main WebAuthn-based Authentication Workflow
+    \item Implemented the Business Closed-loop for Message Packs as Transferable Assets
+    \item Implemented Identity Validation Request Workflows
+    \item Implemented Cryptographic Message Signing and Verification (Shared Library + Frontend)
+    \item Implemented a Deployable and Runnable Local Environment
 \end{enumerate}
 
 \subsection{Future Directions}
@@ -521,41 +459,34 @@ The objectives achieved by the project so far can be summarized into the followi
 We would contribute to the project in the future by implementing the following features:
 
 \begin{enumerate}[leftmargin=2em]
-    \item \textbf{UI Enhancements and User Experience Improvements}
-          \begin{itemize}[leftmargin=2em]
-              \item Implement a more intuitive and visually appealing user interface for message composition and verification.
-              \item Add real-time notifications for incoming messages and verification requests.
-              \item Provide better error handling and user feedback during cryptographic operations.
-          \end{itemize}
-
-    \item \textbf{Bug catching and Fixing}
-          \begin{itemize}[leftmargin=2em]
-              \item Conduct thorough testing to identify and fix any bugs or edge cases that may arise during usage.
-              \item Implement additional unit and integration tests to ensure the robustness of the system.
-          \end{itemize}
-
-    \item \textbf{Performance Optimization}
-          \begin{itemize}[leftmargin=2em]
-              \item Optimize cryptographic operations to reduce latency, especially for larger messages or higher volumes of messages.
-              \item Explore caching strategies for frequently used keys or signatures to improve performance.
-          \end{itemize}
+    \item UI Enhancements and User Experience Improvements
+    \item Bug catching and Fixing
+    \item Performance Optimization
 \end{enumerate}
+
+\begin{appendices}
+    \section*{Codes and Testing Environment}
+
+    You can obtain all codes from
+    \\
+    You can view our online system at \texttt{https://cp683.ryonanamizu.com/}. Please noticed that you need to hardware or mobile phone which support FIDO2 to use the system.
+\end{appendices}
+
 % ============================================================
-\newpage
 \bibliographystyle{plain}
 \begin{thebibliography}{9}
 
-\bibitem{noether2015}
-Shen Noether,
-\newblock Ring Signature Confidential Transactions for Monero,
-\newblock Cryptology {ePrint} Archive, Paper 2015/1098, 2015.
-\newblock Available at \url{https://eprint.iacr.org/2015/1098}
+    \bibitem{noether2015}
+    Shen Noether,
+    \newblock Ring Signature Confidential Transactions for Monero,
+    \newblock Cryptology {ePrint} Archive, Paper 2015/1098, 2015.
+    \newblock Available at \url{https://eprint.iacr.org/2015/1098}
 
-\bibitem{webauthn3}
-Tim Cappalli, Michael B. Jones, Akshay Kumar, Emil Lundberg, and Matthew Miller,
-\newblock {Web Authentication: An API for accessing Public Key Credentials - Level 3},
-\newblock W3C Candidate Recommendation Snapshot, January 2026.
-\newblock Available at \url{https://www.w3.org/TR/webauthn-3/}
+    \bibitem{webauthn3}
+    Tim Cappalli, Michael B. Jones, Akshay Kumar, Emil Lundberg, and Matthew Miller,
+    \newblock {Web Authentication: An API for accessing Public Key Credentials - Level 3},
+    \newblock W3C Candidate Recommendation Snapshot, January 2026.
+    \newblock Available at \url{https://www.w3.org/TR/webauthn-3/}
 
 \end{thebibliography}
 
